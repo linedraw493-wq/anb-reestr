@@ -2,12 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { clearFlow, readFlow, saveFlow } from '../lib/flow'
+import { OTP_LIVE } from '../lib/otp'
 import type { Flow } from '../lib/types'
 import { Err, Shell } from '../ui/Shell'
 
 const LEN = 6
 
-/** Экран 02 — код из SMS. */
+/** Куда ушёл код — временно это Telegram, а не SMS. */
+const KUDA_KOD = OTP_LIVE ? 'Код отправлен в Telegram' : 'Код отправлен'
+
+/** Экран 02 — ввод кода. */
 export default function Code() {
   const navigate = useNavigate()
   const [flow] = useState<Flow | null>(() => readFlow())
@@ -113,7 +117,9 @@ export default function Code() {
   return (
     <Shell>
       <h1>Введите код</h1>
-      <p className="sub">Отправили SMS на {flow.phoneMasked}</p>
+      <p className="sub">
+        {KUDA_KOD} · {flow.phoneMasked}
+      </p>
 
       <div className="code" onClick={() => inputRef.current?.focus()}>
         <div className="code-cells" aria-hidden="true">
@@ -139,7 +145,7 @@ export default function Code() {
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          aria-label="Код из SMS"
+          aria-label="Код подтверждения"
           maxLength={LEN}
           autoFocus
           disabled={checking}
@@ -162,7 +168,7 @@ export default function Code() {
       </button>
 
       <p className="fine">
-        Срок кода и число попыток считает SMS-сервис — мы показываем его ответ.
+        Код живёт пять минут. Не пришёл — нажмите «отправить заново».
       </p>
     </Shell>
   )

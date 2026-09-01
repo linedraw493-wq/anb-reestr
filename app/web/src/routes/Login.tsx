@@ -42,7 +42,7 @@ export default function Login() {
   return (
     <Shell>
       <h1>Вход в реестр</h1>
-      <p className="sub">Введите номер, с которым регистрировались. Пришлём код в SMS.</p>
+      <p className="sub">Введите номер, с которым регистрировались. Пришлём код.</p>
 
       <div>
         <span className="field-label" id="phone-label">

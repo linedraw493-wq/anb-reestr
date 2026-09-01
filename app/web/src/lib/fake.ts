@@ -13,7 +13,8 @@ import type {
    На шаге 2 те же ответы придут по сети от FastAPI; экраны не меняются.
 --------------------------------------------------------------------------- */
 
-const CODE = '000000'
+import { otp, otpPodskazka } from './otp'
+
 const TTL_MS = 5 * 60 * 1000
 const MAX_ATTEMPTS = 5
 const RESEND_SEC = 60
@@ -55,7 +56,8 @@ const invites: Record<string, Invite> = {
 /** Кто уже в реестре — для повторного входа без ссылки. */
 const registered = new Set<string>(['+77017654321'])
 
-type Session = { code: string; expiresAt: number; attempts: number; startedAt: number }
+/** Билет выдаёт сервер (или заглушка) — сам код у нас не хранится. */
+type Session = { ticket: string; expiresAt: number; attempts: number; startedAt: number }
 const sessions = new Map<string, Session>()
 
 const wait = (ms = 380) => new Promise((r) => setTimeout(r, ms))
@@ -109,13 +111,16 @@ export const fakeApi: AuthApi = {
       return { ok: false, reason: 'too-often', retryAfter }
     }
 
+    const vydacha = await otp.start(maskPhone(target))
+    if (!vydacha.ok) return { ok: false, reason: 'bad-phone' }
+
     sessions.set(target, {
-      code: CODE,
+      ticket: vydacha.ticket,
       expiresAt: Date.now() + TTL_MS,
       attempts: 0,
       startedAt: Date.now(),
     })
-    return { ok: true, resendAfter: RESEND_SEC, phoneMasked: maskPhone(target) }
+    return { ok: true, resendAfter: vydacha.resendAfter, phoneMasked: maskPhone(target) }
   },
 
   async check({ code, token, phone }: CheckInput): Promise<CheckResult> {
@@ -132,7 +137,7 @@ export const fakeApi: AuthApi = {
     }
     if (s.attempts >= MAX_ATTEMPTS) return { ok: false, reason: 'locked' }
 
-    if (code !== s.code) {
+    if (!(await otp.check(s.ticket, code))) {
       s.attempts += 1
       const attemptsLeft = MAX_ATTEMPTS - s.attempts
       if (attemptsLeft <= 0) return { ok: false, reason: 'locked' }
@@ -148,5 +153,5 @@ export const fakeApi: AuthApi = {
   },
 }
 
-/** Подсказка с кодом — видна, только пока стоит заглушка. */
-export const fakeHint = `Заглушка: сервера ещё нет, код всегда ${CODE}`
+/** Строка внизу экрана: что сейчас поддельное, а что настоящее. */
+export const fakeHint = otpPodskazka

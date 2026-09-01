@@ -7,7 +7,7 @@ import type { AuthApi, CheckResult, InviteState, StartResult } from './types'
    Выключатель. Одна строка в .env решает, кто отвечает экранам:
      VITE_API=fake  — заглушка в браузере (шаг 1, сервера нет)
      VITE_API=live  — настоящий сервер (шаг 2 и дальше)
-   Провайдер SMS переключается на сервере тем же приёмом: OTP=fake|twilio.
+   Коды входа — на своём выключателе, `VITE_OTP` в lib/otp.ts.
 --------------------------------------------------------------------------- */
 
 export const USE_FAKE = (import.meta.env.VITE_API ?? 'fake') === 'fake'

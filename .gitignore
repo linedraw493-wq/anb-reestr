@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+.vercel
 *.log
 
 # личные данные блогеров — не в git никогда
