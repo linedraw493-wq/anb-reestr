@@ -27,6 +27,9 @@ export default function Katalog() {
   const [beda, setBeda] = useState(false)
   const [naKarte, setNaKarte] = useState(false)
   const [poiskPole, setPoiskPole] = useState(filtry.poisk)
+  // На телефоне фильтры прячутся в шторку: иначе до первого блогера
+  // надо пролистать весь отбор.
+  const [shtorka, setShtorka] = useState(false)
 
   /** Любая правка фильтра переписывает адрес — и ссылку можно скинуть. */
   const pravit = useCallback(
@@ -42,6 +45,7 @@ export default function Katalog() {
         if (v) p.set(k, String(v))
       }
       setAdres(p, { replace: false })
+      setShtorka(false)
     },
     [filtry, setAdres],
   )
@@ -83,12 +87,30 @@ export default function Katalog() {
         </p>
       </header>
 
+      {/* только на телефоне: полоска с отбором и числом найденных */}
+      <div className="kat-mob-polosa">
+        <button className="btn small ghost" onClick={() => setShtorka(true)}>
+          Отбор{zadano > 0 ? ` · ${zadano}` : ''}
+        </button>
+        <span className="kat-skolko malo">
+          {gruzim && !vydacha ? 'Ищем…' : `${vydacha?.vsego ?? 0} найдено`}
+        </span>
+      </div>
+
       <div className="kat-grid">
         {/* ------------------------------------------------------ фильтры */}
-        <aside className="kat-filtry">
+        <aside className={`kat-filtry${shtorka ? ' otkryta' : ''}`}>
+          <button
+            className="shtorka-fon"
+            aria-label="Закрыть отбор"
+            onClick={() => setShtorka(false)}
+          />
           <div className="kat-filtry-inner">
             <div className="kat-fhead">
               <span className="wordmark">Отбор</span>
+              <button className="linkbtn tolko-mob" onClick={() => setShtorka(false)}>
+                закрыть
+              </button>
               {zadano > 0 && (
                 <button className="linkbtn" onClick={() => setAdres(new URLSearchParams())}>
                   сбросить ({zadano})
@@ -204,6 +226,10 @@ export default function Katalog() {
               />
               <span className="fine">Договорные тоже показываем — цена не названа.</span>
             </label>
+
+            <button className="btn tolko-mob" onClick={() => setShtorka(false)}>
+              Показать {vydacha?.vsego ?? 0}
+            </button>
           </div>
         </aside>
 

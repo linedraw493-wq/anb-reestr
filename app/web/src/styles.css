@@ -6,22 +6,24 @@
 
 :root {
   /* цвет */
-  --paper: #f7f3e9;
+  --paper: #f8f4ea;
   --surface: #fdfbf5;
   --ink: #1e1b2e;
   --muted: #6b6580;
   --faint: #9b95ad;
   --line: #e4ddd0;
   --line-strong: #cec6b8;
-  --accent: #5b52d6;
-  --accent-ink: #3b33a8;
-  --accent-soft: #e9e6fb;
+  --accent: #2f6fe0;
+  --accent-ink: #1f4fae;
+  --accent-soft: #e4edfd;
+  --accent-2: #7e5fe0;
+  --accent-2-soft: #ece5fb;
   --on-accent: #ffffff;
   --good: #2b7a63;
   --good-soft: #dff0ea;
   --danger: #b03060;
   --danger-soft: #fae3ec;
-  --focus: #5b52d6;
+  --focus: #2f6fe0;
 
   /* шрифт */
   --font-display: 'Archivo', system-ui, -apple-system, sans-serif;
@@ -43,15 +45,17 @@
     --faint: #7a7392;
     --line: #2b2839;
     --line-strong: #3d3853;
-    --accent: #8f86f5;
-    --accent-ink: #b3abff;
-    --accent-soft: #241f3d;
-    --on-accent: #14121f;
+    --accent: #6ea3ff;
+    --accent-ink: #9dc0ff;
+    --accent-soft: #16233c;
+    --accent-2: #a58bf5;
+    --accent-2-soft: #241f3d;
+    --on-accent: #0f1522;
     --good: #5cc0a2;
     --good-soft: #17281f;
     --danger: #e88ab0;
     --danger-soft: #331926;
-    --focus: #8f86f5;
+    --focus: #6ea3ff;
   }
 }
 
@@ -63,15 +67,17 @@
   --faint: #7a7392;
   --line: #2b2839;
   --line-strong: #3d3853;
-  --accent: #8f86f5;
-  --accent-ink: #b3abff;
-  --accent-soft: #241f3d;
-  --on-accent: #14121f;
+  --accent: #6ea3ff;
+  --accent-ink: #9dc0ff;
+  --accent-soft: #16233c;
+  --accent-2: #a58bf5;
+  --accent-2-soft: #241f3d;
+  --on-accent: #0f1522;
   --good: #5cc0a2;
   --good-soft: #17281f;
   --danger: #e88ab0;
   --danger-soft: #331926;
-  --focus: #8f86f5;
+  --focus: #6ea3ff;
 }
 
 /* --------------------------------------------------------------------- сброс */
@@ -1751,4 +1757,459 @@ select.input[disabled] {
   border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 16px 18px;
+}
+
+/* =====================================================================
+   ГЛАВНАЯ — витрина. Две двери сверху: рекламодателю и блогеру.
+   ===================================================================== */
+
+.glav {
+  min-height: 100dvh;
+  background: var(--paper);
+}
+
+.glav-vnutri {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+/* ------------------------------------------------------------- обложка */
+
+.geroy {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: center;
+  padding-top: 12px;
+}
+
+.geroy-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.geroy-h {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  max-width: 16ch;
+}
+
+.geroy-h em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.geroy-p {
+  color: var(--muted);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 46ch;
+}
+
+.geroy-knopki {
+  display: flex;
+  gap: 11px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn.shirokaya {
+  width: auto;
+  padding: 14px 26px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+/* стопка карточек справа — показать, как выглядит выдача */
+.geroy-vitrina {
+  display: none;
+  position: relative;
+  min-height: 300px;
+}
+
+@media (min-width: 900px) {
+  .geroy {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 48px;
+    padding-top: 26px;
+  }
+
+  .geroy-vitrina {
+    display: block;
+  }
+}
+
+.mini {
+  position: absolute;
+  left: calc(var(--sdvig) * 26px);
+  top: calc(var(--sdvig) * 96px);
+  right: calc((2 - var(--sdvig)) * 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 14px 16px;
+  box-shadow: 0 18px 40px -30px rgba(30, 27, 46, 0.5);
+}
+
+.mini-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mini-nums {
+  display: flex;
+  gap: 16px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.mini-nums b {
+  font-family: var(--font-mono);
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.mini-niz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* --------------------------------------------------------------- цифры */
+
+.cifry {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 22px 24px;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cifra .v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+}
+
+.cifra .k {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------ как идёт */
+
+.kak-blok {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+@media (min-width: 760px) {
+  .kak-blok {
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+  }
+}
+
+.kak-stolb {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 24px 24px 22px;
+}
+
+.kak-stolb:last-child {
+  border-left: 3px solid var(--accent-2);
+}
+
+.kak-stolb:first-child {
+  border-left: 3px solid var(--accent);
+}
+
+.kak-kto {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.kak-shagi {
+  list-style: none;
+  counter-reset: shag;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.kak-shagi li {
+  counter-increment: shag;
+  position: relative;
+  padding-left: 34px;
+  font-size: 0.9375rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.kak-shagi li b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.kak-shagi li::before {
+  content: counter(shag);
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+.kak-stolb:last-child .kak-shagi li::before {
+  background: var(--accent-2-soft);
+  color: var(--accent-2);
+}
+
+/* ------------------------------------------------------------ подборки */
+
+.podborki {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.razdel-h {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.plitki {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.plitka {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  padding: 9px 15px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 0.9375rem;
+}
+
+.plitka:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.plitka.gorod:hover {
+  border-color: var(--accent-2);
+  background: var(--accent-2-soft);
+}
+
+.pl-n {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- подвал */
+
+.podval {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 760px) {
+  .podval {
+    grid-template-columns: 1.6fr 1fr;
+  }
+}
+
+.podval .fine {
+  max-width: 52ch;
+  margin-top: 7px;
+}
+
+.podval-ssylki {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 0.875rem;
+}
+
+.podval-ssylki a {
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.podval-ssylki a:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------- каталог на телефоне: шторка */
+
+.kat-mob-polosa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kat-skolko.malo {
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.shtorka-fon {
+  display: none;
+}
+
+.tolko-mob {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .tolko-mob {
+    display: block;
+  }
+
+  /* закрытая шторка не занимает места и не читается голосом */
+  .kat-filtry {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .kat-filtry.otkryta {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .shtorka-fon {
+    display: block;
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: rgba(20, 18, 34, 0.45);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    cursor: pointer;
+  }
+
+  .kat-filtry.otkryta .shtorka-fon {
+    opacity: 1;
+  }
+
+  .kat-filtry-inner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 88dvh;
+    overflow-y: auto;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 -18px 40px -24px rgba(20, 18, 34, 0.5);
+  }
+
+  .kat-filtry.otkryta .kat-filtry-inner {
+    transform: translateY(0);
+  }
+
+  /* полоска-ручка сверху, чтобы было понятно, что это шторка */
+  .kat-filtry-inner::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--line-strong);
+    margin: 0 auto 14px;
+  }
+}
+
+@media (min-width: 900px) {
+  .kat-mob-polosa {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kat-filtry-inner,
+  .shtorka-fon {
+    transition: none;
+  }
+}
+
+/* число найденных на телефоне уже стоит в полоске отбора — второй раз лишний */
+@media (max-width: 899px) {
+  .kat-verh > .kat-skolko:not(.malo) {
+    display: none;
+  }
+
+  .kat-verh {
+    justify-content: flex-start;
+  }
 }

@@ -802,6 +802,50 @@ async def zavesti(request: Request):
 # ==================================================================== каталог
 
 
+@app.get("/api/glavnaya")
+async def glavnaya():
+    """Цифры и подборки для витрины. Публично, вход не нужен."""
+    async with baza.pul().acquire() as conn:
+        gde = "k.status = 'published' and l.udalen_v is null"
+        osnova = " from kartochki k join lyudi l on l.id = k.chelovek_id where " + gde
+
+        vsego = await conn.fetchval("select count(*)" + osnova)
+        gorodov = await conn.fetchval(
+            "select count(distinct k.gorod_id)" + osnova + " and k.gorod_id is not null"
+        )
+        ohvat = await conn.fetchval("select coalesce(sum(k.ohvat), 0)" + osnova)
+
+        temy = await conn.fetch(
+            "select t.nazvanie, count(*) as skolko"
+            " from kartochka_tematiki kt"
+            " join tematiki t on t.id = kt.tematika_id"
+            " join kartochki k on k.id = kt.kartochka_id"
+            " join lyudi l on l.id = k.chelovek_id"
+            " where " + gde + " and t.vidna"
+            " group by t.nazvanie order by 2 desc, 1 limit 8"
+        )
+        goroda = await conn.fetch(
+            "select g.nazvanie, count(*) as skolko"
+            " from kartochki k join goroda g on g.id = k.gorod_id"
+            " join lyudi l on l.id = k.chelovek_id"
+            " where " + gde + " group by g.nazvanie order by 2 desc, 1 limit 6"
+        )
+        luchshie = await conn.fetch(
+            KARTOCHKA_SELECT + " join lyudi l on l.id = k.chelovek_id where " + gde
+            + " order by k.ohvat desc nulls last limit 3"
+        )
+        vitrina = [await _karta_slovarem(conn, s) for s in luchshie]
+
+    return {
+        "vsego": vsego,
+        "gorodov": gorodov,
+        "ohvat": int(ohvat or 0),
+        "tematiki": [{"nazvanie": r["nazvanie"], "skolko": r["skolko"]} for r in temy],
+        "goroda": [{"nazvanie": r["nazvanie"], "skolko": r["skolko"]} for r in goroda],
+        "vitrina": vitrina,
+    }
+
+
 @app.get("/api/katalog")
 async def katalog(
     tematika: str | None = None,

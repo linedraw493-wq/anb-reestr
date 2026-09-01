@@ -3,6 +3,7 @@ import Blogger from './routes/Blogger'
 import Card from './routes/Card'
 import Code from './routes/Code'
 import Done from './routes/Done'
+import Glavnaya from './routes/Glavnaya'
 import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
@@ -11,7 +12,8 @@ import Moderator from './routes/Moderator'
 export default function App() {
   return (
     <Routes>
-      {/* публичное: каталог видим всем, вход не нужен */}
+      {/* публичное: витрина и каталог видны всем, вход не нужен */}
+      <Route path="/" element={<Glavnaya />} />
       <Route path="/katalog" element={<Katalog />} />
       <Route path="/b/:id" element={<Blogger />} />
 
@@ -26,7 +28,6 @@ export default function App() {
       {/* инструмент модератора — на сервере закроется ролью admin */}
       <Route path="/moderator" element={<Moderator />} />
 
-      <Route path="/" element={<Navigate to="/katalog" replace />} />
       <Route path="*" element={<Navigate to="/katalog" replace />} />
     </Routes>
   )
