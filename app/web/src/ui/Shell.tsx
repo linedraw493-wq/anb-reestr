@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { USE_FAKE } from '../lib/api'
-import { fakeHint } from '../lib/fake'
+import { USE_FAKE } from '../lib/rezhim'
+
+const PODSKAZKA = 'Заглушка: сервера нет, код всегда 000000'
 
 /** Вымышленные, только чтобы показать, куда человек вступает. */
 const taste = [
@@ -22,7 +23,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="wordmark">Ассоциация блогеров</div>
           <h2 className="pitch-h">Реестр, по которому вас найдут</h2>
           <p className="pitch-p">
-            277 блогеров Казахстана в одном каталоге. Рекламодатель ищет по тематике, охвату и
+            Блогеры Казахстана в одном каталоге. Рекламодатель ищет по тематике, охвату и
             району — и пишет вам сам.
           </p>
           <ul className="taste">
@@ -48,7 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
           {USE_FAKE && (
             <div className="note hint" role="status">
-              {fakeHint}
+              {PODSKAZKA}
             </div>
           )}
         </div>

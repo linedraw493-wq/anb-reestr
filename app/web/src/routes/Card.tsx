@@ -1,23 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { cardApi, USE_FAKE } from '../lib/api'
+import { cardApi, zagruzitFoto } from '../lib/api'
 import {
   gotovo,
-  nuzhenRayon,
   OBYAZATELNO,
   pustayaKarta,
   razdelit,
   type CardStatus,
   type Karta,
+  type ReadResult,
 } from '../lib/card'
-import { fakeHint } from '../lib/fake'
 import { razobrat, razobratVse } from '../lib/seti'
-import { GORODA, MAX_TEMATIK, TEMATIKI, YAZYKI } from '../lib/spravochniki'
+import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
+import { USE_FAKE } from '../lib/rezhim'
 import { Preview } from '../ui/Preview'
 
 type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
 
 /** Окно регистрации карточки. Вариант А — форма и живой предпросмотр. */
 export default function Card() {
+  const spr = useSpravochniki()
   const [k, setK] = useState<Karta>(pustayaKarta)
   const [status, setStatus] = useState<CardStatus | null>(null)
   const [scan, setScan] = useState<ScreenState>('empty')
@@ -72,7 +73,8 @@ export default function Card() {
     if (!file) return
     setK((prev) => ({ ...prev, screenshot: URL.createObjectURL(file) }))
     setScan('reading')
-    const res = await cardApi.readScreenshot(file)
+    const res = (await cardApi.readScreenshot(file)) as ReadResult & { url?: string }
+    if (res.url) setK((prev) => ({ ...prev, screenshot: res.url! }))
     if (res.ok) {
       setK((prev) => ({
         ...prev,
@@ -112,7 +114,7 @@ export default function Card() {
   }
 
   const nedostaet = OBYAZATELNO.filter((f) => !f.done(k))
-  const rayony = GORODA[k.gorod] ?? []
+  const rayony = spr.goroda[k.gorod] ?? []
   const seti = razobratVse(k.ssylki)
 
   return (
@@ -168,9 +170,9 @@ export default function Card() {
                 type="file"
                 accept="image/*"
                 hidden
-                onChange={(e) => {
+                onChange={async (e) => {
                   const f = e.target.files?.[0]
-                  if (f) set('photo', URL.createObjectURL(f))
+                  if (f) set('photo', await zagruzitFoto(f))
                 }}
               />
             </div>
@@ -330,7 +332,7 @@ export default function Card() {
                 Тематика · до {MAX_TEMATIK} · выбрано {k.tematiki.length}
               </span>
               <div className="chips">
-                {TEMATIKI.map((t) => {
+                {spr.tematiki.map((t: string) => {
                   const on = k.tematiki.includes(t)
                   return (
                     <button
@@ -359,7 +361,7 @@ export default function Card() {
                   }}
                 >
                   <option value="">Выберите</option>
-                  {Object.keys(GORODA).map((g) => (
+                  {Object.keys(spr.goroda).map((g) => (
                     <option key={g} value={g}>
                       {g}
                     </option>
@@ -378,7 +380,7 @@ export default function Card() {
                   onChange={(e) => set('rayon', e.target.value)}
                 >
                   <option value="">{rayony.length ? 'Выберите' : 'Не нужен'}</option>
-                  {rayony.map((r) => (
+                  {rayony.map((r: string) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -390,7 +392,7 @@ export default function Card() {
             <div className="fld">
               <span className="field-label">Язык контента</span>
               <div className="chips">
-                {YAZYKI.map((y) => (
+                {spr.yazyki.map((y: string) => (
                   <button
                     key={y}
                     className={`chip${k.yazyk === y ? ' on' : ''}`}
@@ -446,7 +448,7 @@ export default function Card() {
 
           {USE_FAKE && (
             <div className="note hint" role="status">
-              {fakeHint}. Чтение скрина тоже поддельное — цифры подставляются готовые.
+              Заглушка: сервера нет, заявки живут до обновления страницы.
             </div>
           )}
         </div>

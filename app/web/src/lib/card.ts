@@ -1,4 +1,4 @@
-import { GORODA } from './spravochniki'
+import { nuzhenRayon } from './spravochniki'
 
 /** Откуда взялась цифра — это видит рекламодатель. Требование спеки. */
 export type Istochnik = 'screen' | 'words'
@@ -38,11 +38,15 @@ export type Proverka = {
 
 export type CardStatus = 'draft' | 'moderation' | 'published' | 'rejected'
 
+export type PravkaCifr = { podpischiki: string; ohvat: string; istochnik: Istochnik }
+
 export type Zayavka = {
   karta: Karta
   status: CardStatus
   podana: string
-  prichina?: string
+  prichina?: string | null
+  /** цифры, поданные на проверку у уже опубликованной карточки */
+  pravkaCifr?: PravkaCifr | null
 }
 
 export type ReadResult =
@@ -62,7 +66,7 @@ export interface ModerApi {
   reject(id: string, prichina: string): Promise<void>
   remove(id: string): Promise<void>
   update(karta: Karta): Promise<void>
-  create(): Promise<Zayavka>
+  create(telefon: string, nick: string): Promise<Zayavka>
 }
 
 export const pustayaKarta: Karta = {
@@ -81,11 +85,6 @@ export const pustayaKarta: Karta = {
   yazyk: '',
   stavka: '',
   dogovornaya: false,
-}
-
-/** Есть ли у города районы — от этого зависит, обязателен ли район. */
-export function nuzhenRayon(gorod: string): boolean {
-  return (GORODA[gorod] ?? []).length > 0
 }
 
 /** Обязательные поля. По ним считается «готово N из M». */
@@ -246,10 +245,10 @@ export const fakeModerApi: ModerApi = {
     const z = zayavki.find((x) => x.karta.id === karta.id)
     if (z) z.karta = { ...karta }
   },
-  async create() {
+  async create(_telefon: string, nick: string) {
     await wait(250)
     const z: Zayavka = {
-      karta: { ...pustayaKarta, id: `z${Date.now()}`, nick: '@новая.карточка' },
+      karta: { ...pustayaKarta, id: `z${Date.now()}`, nick: nick || '@новая.карточка' },
       status: 'draft',
       podana: 'заведена вручную',
     }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { moderApi, USE_FAKE } from '../lib/api'
+import { moderApi } from '../lib/api'
 import {
-  nuzhenRayon,
   razdelit,
   STATUS_NAZVANIE,
   type CardStatus,
@@ -9,7 +8,8 @@ import {
   type Zayavka,
 } from '../lib/card'
 import { razobratVse } from '../lib/seti'
-import { GORODA, MAX_TEMATIK, TEMATIKI, YAZYKI } from '../lib/spravochniki'
+import { USE_FAKE } from '../lib/rezhim'
+import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
 import { Preview } from '../ui/Preview'
 
 const VKLADKI: { key: CardStatus; label: string }[] = [
@@ -21,6 +21,7 @@ const VKLADKI: { key: CardStatus; label: string }[] = [
 
 /** Инструмент модератора: заявки, проверка, правка, удаление, добавление. */
 export default function Moderator() {
+  const spr = useSpravochniki()
   const [vse, setVse] = useState<Zayavka[] | null>(null)
   const [vkladka, setVkladka] = useState<CardStatus>('moderation')
   const [vybran, setVybran] = useState<string | null>(null)
@@ -81,8 +82,8 @@ export default function Moderator() {
         <div className="wordmark">Ассоциация блогеров · модератор</div>
         <h1>Проверка карточек</h1>
         <p className="sub">
-          Карточка попадает в каталог только после вашего одобрения. ИИ читает скрин
-          статистики и показывает, сходятся ли цифры с тем, что указал блогер.
+          Карточка попадает в каталог только после вашего одобрения. Сверяйте цифры со
+          скрином статистики — чтение скрина ИИ ещё не включено.
         </p>
       </header>
 
@@ -111,7 +112,9 @@ export default function Moderator() {
             disabled={zanyat}
             onClick={() =>
               void deystvie(async () => {
-                const z = await moderApi.create()
+                const telefon = prompt('Номер телефона блогера (можно оставить пустым):') ?? ''
+                const nik = prompt('Ник блогера:') ?? ''
+                const z = await moderApi.create(telefon, nik)
                 setVkladka('draft')
                 setVybran(z.karta.id)
               }, 'ostavit')
@@ -184,6 +187,31 @@ export default function Moderator() {
 
               <Preview k={pravka} />
 
+              {tekushchaya.pravkaCifr && (
+                <div className="proverka bad">
+                  <span className="p-head">Блогер поменял цифры — ждут проверки</span>
+                  <dl className="p-rows">
+                    <div>
+                      <dt>В каталоге</dt>
+                      <dd>
+                        {razdelit(tekushchaya.karta.followers) || '—'} подписчиков ·{' '}
+                        {razdelit(tekushchaya.karta.reach) || '—'} охват
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Просит</dt>
+                      <dd>
+                        {razdelit(tekushchaya.pravkaCifr.podpischiki) || '—'} подписчиков ·{' '}
+                        {razdelit(tekushchaya.pravkaCifr.ohvat) || '—'} охват
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="fine">
+                    До вашего решения в каталоге висят старые цифры. Одобрите — встанут новые.
+                  </p>
+                </div>
+              )}
+
               <ProverkaBlok k={pravka} />
 
               {/* ------------------------------------------------ правка */}
@@ -235,7 +263,7 @@ export default function Moderator() {
                       }
                     >
                       <option value="">Выберите</option>
-                      {Object.keys(GORODA).map((g) => (
+                      {Object.keys(spr.goroda).map((g) => (
                         <option key={g} value={g}>
                           {g}
                         </option>
@@ -253,7 +281,7 @@ export default function Moderator() {
                       <option value="">
                         {nuzhenRayon(pravka.gorod) ? 'Выберите' : 'Не нужен'}
                       </option>
-                      {(GORODA[pravka.gorod] ?? []).map((r) => (
+                      {(spr.goroda[pravka.gorod] ?? []).map((r: string) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -265,7 +293,7 @@ export default function Moderator() {
                 <div className="fld">
                   <span className="field-label">Тематика · до {MAX_TEMATIK}</span>
                   <div className="chips">
-                    {TEMATIKI.map((t) => {
+                    {spr.tematiki.map((t: string) => {
                       const on = pravka.tematiki.includes(t)
                       return (
                         <button
@@ -291,7 +319,7 @@ export default function Moderator() {
                 <div className="fld">
                   <span className="field-label">Язык</span>
                   <div className="chips">
-                    {YAZYKI.map((y) => (
+                    {spr.yazyki.map((y: string) => (
                       <button
                         key={y}
                         className={`chip${pravka.yazyk === y ? ' on' : ''}`}

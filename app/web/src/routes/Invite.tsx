@@ -21,7 +21,10 @@ export default function Invite() {
   useEffect(() => {
     let alive = true
     api.invite(token).then((state) => {
-      if (alive) setInvite(state)
+      if (!alive) return
+      setInvite(state)
+      // Заготовка из таблицы заказчика приходит без номера — просим сразу.
+      if (state.status === 'ok' && !state.phoneMasked) setEditing(true)
     })
     return () => {
       alive = false
@@ -64,7 +67,11 @@ export default function Invite() {
 
     if (!res.ok) {
       if (res.reason === 'dead-invite') setInvite({ status: 'dead' })
-      else if (res.reason === 'bad-phone') setError('Проверьте номер — такой не подходит.')
+      else if (res.reason === 'need-phone') {
+        setEditing(true)
+        setError('Впишите свой номер — на него придёт код.')
+      } else if (res.reason === 'bad-phone')
+        setError('Проверьте номер — такой не подходит.')
       else if (res.reason === 'too-often')
         setError(`Код уже отправлен. Следующий можно запросить через ${res.retryAfter} сек.`)
       else setError('Не получилось отправить код. Попробуйте ещё раз.')
@@ -85,7 +92,7 @@ export default function Invite() {
         </div>
         <div>
           <div className="nm">{invite.nick}</div>
-          <div className="mt">Приглашение от {invite.invitedAt}</div>
+          <div className="mt">{invite.invitedAt ? `Приглашение от ${invite.invitedAt}` : 'Личное приглашение'}</div>
         </div>
       </div>
 

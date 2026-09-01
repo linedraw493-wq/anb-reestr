@@ -16,6 +16,8 @@ export type StartResult =
   /** номера нет в базе — говорим честно (слово владельца 02.09.2026) */
   | { ok: false; reason: 'unknown-phone' }
   | { ok: false; reason: 'bad-phone' }
+  /** заготовка из таблицы заказчика без номера — человек вписывает свой */
+  | { ok: false; reason: 'need-phone' }
   | { ok: false; reason: 'too-often'; retryAfter: number }
   | { ok: false; reason: 'dead-invite' }
 
