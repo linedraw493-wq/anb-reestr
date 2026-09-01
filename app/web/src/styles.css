@@ -1,0 +1,476 @@
+/* ---------------------------------------------------------------------------
+   Стиль вынесен в переменные (токены). Если заказчик пришлёт свой дизайн —
+   переодеваем сайт правкой этого блока, компоненты не трогаем.
+   Слово владельца 02.09.2026.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* цвет */
+  --paper: #f4f2ec;
+  --surface: #fbfaf6;
+  --ink: #211e1a;
+  --muted: #726c61;
+  --line: #ded9cd;
+  --line-strong: #cbc3b2;
+  --accent: #b07721;
+  --accent-ink: #7c5310;
+  --accent-soft: #f0e7d4;
+  --on-accent: #ffffff;
+  --good: #2e7150;
+  --danger: #a5402f;
+  --danger-soft: #f3e2dd;
+  --focus: #b07721;
+
+  /* шрифт */
+  --font-display: 'Archivo', system-ui, -apple-system, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* размер */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --gap: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #16140e;
+    --surface: #211e16;
+    --ink: #efebdf;
+    --muted: #a79e8c;
+    --line: #332f24;
+    --line-strong: #453f30;
+    --accent: #e3aa4e;
+    --accent-ink: #f0c97f;
+    --accent-soft: #332b18;
+    --on-accent: #1b1811;
+    --good: #5cb98c;
+    --danger: #e08a76;
+    --danger-soft: #3a241d;
+    --focus: #e3aa4e;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #16140e;
+  --surface: #211e16;
+  --ink: #efebdf;
+  --muted: #a79e8c;
+  --line: #332f24;
+  --line-strong: #453f30;
+  --accent: #e3aa4e;
+  --accent-ink: #f0c97f;
+  --accent-soft: #332b18;
+  --on-accent: #1b1811;
+  --good: #5cb98c;
+  --danger: #e08a76;
+  --danger-soft: #3a241d;
+  --focus: #e3aa4e;
+}
+
+/* --------------------------------------------------------------------- сброс */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------- каркас */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px 24px;
+}
+
+.wordmark {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.sub {
+  font-size: 0.9375rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.fine {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.center {
+  text-align: center;
+}
+
+/* ------------------------------------------------------- карточка приглашения */
+
+.idcard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--paper);
+}
+
+.ava {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.idcard .nm {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.idcard .mt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------------- поля */
+
+.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 13px 14px;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.input.bad {
+  border-color: var(--danger);
+}
+
+/* подставленный номер: показан скрытым, редактируется по кнопке */
+.phone-known {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 13px 14px;
+}
+
+.phone-known .val {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.linkbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.linkbtn:hover {
+  text-decoration: underline;
+}
+
+.linkbtn[disabled] {
+  color: var(--muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* -------------------------------------------------------------- ячейки кода */
+
+.code {
+  position: relative;
+}
+
+.code-cells {
+  display: flex;
+  gap: 8px;
+}
+
+.cell {
+  flex: 1;
+  aspect-ratio: 1 / 1.15;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 600;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cell.filled {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.cell.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.cell.bad {
+  border-color: var(--danger);
+}
+
+/* настоящее поле лежит поверх ячеек и не видно —
+   так работает автоподстановка кода из SMS на телефоне */
+.code-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  font-size: 16px; /* меньше 16px — iOS сам увеличивает страницу */
+  letter-spacing: 2em;
+  cursor: pointer;
+}
+
+.resend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+}
+
+.resend .t {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ кнопки */
+
+.btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.btn:hover:not([disabled]) {
+  filter: brightness(0.94);
+}
+
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+
+/* ----------------------------------------------------------------- плашки */
+
+.note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.note.err {
+  background: var(--danger-soft);
+  color: var(--ink);
+}
+
+.note.err .dot {
+  color: var(--danger);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.note.hint {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.78125rem;
+  color: var(--muted);
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.consent input {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+/* ------------------------------------------------------------------ итог */
+
+.checkwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0 2px;
+}
+
+.check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--good);
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stub {
+  border: 1px dashed var(--line-strong);
+  border-radius: 9px;
+  padding: 14px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.45;
+  text-align: center;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 32px auto;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
