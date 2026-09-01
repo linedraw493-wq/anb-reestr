@@ -5,6 +5,11 @@ dist/
 .vercel
 *.log
 
+# питон
+.venv/
+__pycache__/
+*.pyc
+
 # личные данные блогеров — не в git никогда
 *.csv
 *.xlsx
