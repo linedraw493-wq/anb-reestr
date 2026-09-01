@@ -92,8 +92,24 @@ export async function zagruzitFoto(file: File): Promise<string> {
 
 /* ----------------------------------------------------------- модератор */
 
+/** Сервер может ответить «нет прав» или лечь. Это не список — и экран об этом узнает. */
+export class NetDostupa extends Error {}
+export class ServerMolchit extends Error {}
+
 const liveModerApi: ModerApi = {
-  list: () => get<Zayavka[]>('/api/moder/zayavki'),
+  async list() {
+    let otvet: Response
+    try {
+      otvet = await fetch('/api/moder/zayavki', { credentials: 'same-origin' })
+    } catch {
+      throw new ServerMolchit()
+    }
+    if (otvet.status === 403) throw new NetDostupa()
+    if (!otvet.ok) throw new ServerMolchit()
+    const dannye = await otvet.json()
+    if (!Array.isArray(dannye)) throw new ServerMolchit()
+    return dannye as Zayavka[]
+  },
   approve: async (id) => void (await post('/api/moder/approve', { id })),
   reject: async (id, prichina) => void (await post('/api/moder/reject', { id, prichina })),
   remove: async (id) => void (await post('/api/moder/remove', { id })),

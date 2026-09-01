@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { moderApi } from '../lib/api'
+import { useNavigate } from 'react-router-dom'
+import { moderApi, NetDostupa } from '../lib/api'
 import {
   razdelit,
   STATUS_NAZVANIE,
@@ -11,6 +12,7 @@ import { razobratVse } from '../lib/seti'
 import { USE_FAKE } from '../lib/rezhim'
 import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
 import { Preview } from '../ui/Preview'
+import { Shapka } from '../ui/Shapka'
 
 const VKLADKI: { key: CardStatus; label: string }[] = [
   { key: 'moderation', label: 'На проверке' },
@@ -21,6 +23,7 @@ const VKLADKI: { key: CardStatus; label: string }[] = [
 
 /** Инструмент модератора: заявки, проверка, правка, удаление, добавление. */
 export default function Moderator() {
+  const navigate = useNavigate()
   const spr = useSpravochniki()
   const [vse, setVse] = useState<Zayavka[] | null>(null)
   const [vkladka, setVkladka] = useState<CardStatus>('moderation')
@@ -28,9 +31,18 @@ export default function Moderator() {
   const [pravka, setPravka] = useState<Karta | null>(null)
   const [otkaz, setOtkaz] = useState('')
   const [zanyat, setZanyat] = useState(false)
+  const [beda, setBeda] = useState<'net-prav' | 'net-svyazi' | null>(null)
 
   async function perechitat(ostavit?: string | null) {
-    const list = await moderApi.list()
+    let list: Zayavka[]
+    try {
+      list = await moderApi.list()
+    } catch (oshibka) {
+      setBeda(oshibka instanceof NetDostupa ? 'net-prav' : 'net-svyazi')
+      setVse([])
+      return
+    }
+    setBeda(null)
     setVse(list)
     const id = ostavit !== undefined ? ostavit : vybran
     const nashli = list.find((z) => z.karta.id === id)
@@ -76,8 +88,28 @@ export default function Moderator() {
     )
   }
 
+  if (beda) {
+    return (
+      <div className="form-page narrow">
+        <Shapka />
+        <header className="form-head">
+          <h1>{beda === 'net-prav' ? 'Сюда нельзя' : 'Сервер не отвечает'}</h1>
+          <p className="sub">
+            {beda === 'net-prav'
+              ? 'Проверка карточек — для модераторов Ассоциации. Войдите под своим номером.'
+              : 'Не получилось забрать заявки. Обновите страницу — если не поможет, сервер лежит.'}
+          </p>
+        </header>
+        <button className="btn" onClick={() => navigate('/vhod')}>
+          {beda === 'net-prav' ? 'Войти' : 'На вход'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className={`form-page moder${vybran ? ' open' : ''}`}>
+      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · модератор</div>
         <h1>Проверка карточек</h1>

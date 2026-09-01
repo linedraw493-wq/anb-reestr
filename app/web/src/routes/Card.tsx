@@ -13,6 +13,7 @@ import { razobrat, razobratVse } from '../lib/seti'
 import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
 import { USE_FAKE } from '../lib/rezhim'
 import { Preview } from '../ui/Preview'
+import { Shapka } from '../ui/Shapka'
 
 type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
 
@@ -119,6 +120,7 @@ export default function Card() {
 
   return (
     <div className="form-page">
+      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>Ваша карточка</h1>
@@ -470,6 +472,7 @@ export default function Card() {
 function Sent({ k, published }: { k: Karta; published: boolean }) {
   return (
     <div className="form-page narrow">
+      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>{published ? 'Карточка в каталоге' : 'Карточка на проверке'}</h1>
