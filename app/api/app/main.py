@@ -159,7 +159,10 @@ async def vhod_start(request: Request):
                 return {"ok": False, "reason": "dead-invite"}
             chelovek_id = zapis["chelovek_id"]
             telefon = zapis["telefon"]
-            if syroy:  # человек поправил номер в приглашении
+            # Заготовка без номера: человек обязан вписать свой.
+            if not telefon and not syroy:
+                return {"ok": False, "reason": "need-phone"}
+            if syroy:  # человек вписал или поправил номер в приглашении
                 novyy = vhod.normalizovat_telefon(syroy)
                 if novyy is None:
                     return {"ok": False, "reason": "bad-phone"}
@@ -183,7 +186,10 @@ async def vhod_start(request: Request):
             if chelovek_id is None:
                 return {"ok": False, "reason": "unknown-phone"}
 
-        beda = await vhod.vydat_kod(conn, chelovek_id, telefon)
+        metka = await conn.fetchval(
+            "select nik from kartochki where chelovek_id = $1", chelovek_id
+        )
+        beda = await vhod.vydat_kod(conn, chelovek_id, telefon, metka or "")
 
     if beda and beda.startswith("too-often:"):
         return {"ok": False, "reason": "too-often", "retryAfter": int(beda.split(":")[1])}

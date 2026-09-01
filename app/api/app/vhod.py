@@ -28,7 +28,10 @@ def otpechatok(znachenie: str) -> str:
     return hmac.new(nastroyki.SOL.encode(), znachenie.encode(), hashlib.sha256).hexdigest()
 
 
-def maska(telefon: str) -> str:
+def maska(telefon: str | None) -> str:
+    """Пусто — заготовка из таблицы заказчика: номер человек впишет сам."""
+    if not telefon:
+        return ""
     d = "".join(ch for ch in telefon if ch.isdigit())
     if len(d) < 11:
         return telefon
@@ -50,7 +53,9 @@ def normalizovat_telefon(syroy: str) -> str | None:
 # ------------------------------------------------------------------- коды
 
 
-async def vydat_kod(conn: asyncpg.Connection, chelovek_id: int, telefon: str) -> str | None:
+async def vydat_kod(
+    conn: asyncpg.Connection, chelovek_id: int, telefon: str | None, metka: str = ""
+) -> str | None:
     """Возвращает 'too-often:<сек>' | 'no-delivery' | None (всё хорошо)."""
     poslednii = await conn.fetchrow(
         "select sozdan_v from kody where chelovek_id = $1 order by sozdan_v desc limit 1",
@@ -62,7 +67,7 @@ async def vydat_kod(conn: asyncpg.Connection, chelovek_id: int, telefon: str) ->
             return f"too-often:{int(nastroyki.POVTOR_CHEREZ_SEK - proshlo)}"
 
     kod = f"{secrets.randbelow(1_000_000):06d}"
-    if not await telegram.poslat_kod(kod, maska(telefon)):
+    if not await telegram.poslat_kod(kod, maska(telefon) or metka or "вход"):
         return "no-delivery"
 
     # старые коды этого человека гасим: живым остаётся один
