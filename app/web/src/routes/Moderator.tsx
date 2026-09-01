@@ -409,8 +409,14 @@ function ProverkaBlok({ k }: { k: Karta }) {
   if (!p) {
     return (
       <div className="proverka none">
-        <span className="p-head">Скрин не проверен</span>
-        <p className="fine">Блогер не загрузил скрин или его не удалось прочитать.</p>
+        <span className="p-head">
+          Скрин ещё не проверяется
+          <span className="pill soon">скоро</span>
+        </span>
+        <p className="fine">
+          Здесь будет отчёт ИИ: что он прочитал со скрина и сходится ли это с тем, что
+          указал блогер. Пока сверяйте картинку глазами.
+        </p>
       </div>
     )
   }
@@ -419,7 +425,12 @@ function ProverkaBlok({ k }: { k: Karta }) {
       <span className="p-head">
         {p.sovpalo ? 'ИИ: цифры сходятся' : 'ИИ: цифры расходятся'}
         <span className="pill say">точность {Math.round(p.tochnost * 100)}%</span>
+        <span className="pill soon">пример</span>
       </span>
+      <p className="fine">
+        Так это будет выглядеть, когда ИИ-проверку включат. Сейчас данные показаны для
+        примера.
+      </p>
       <dl className="p-rows">
         <div>
           <dt>На скрине</dt>

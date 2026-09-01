@@ -249,14 +249,14 @@ export default function Card() {
               <div className="shot">
                 <img src={k.screenshot} alt="Загруженный скрин статистики" />
                 <div className="shot-txt">
-                  {scan === 'reading' && <p className="reading">Читаем скрин…</p>}
+                  {scan === 'reading' && <p className="reading">Загружаем…</p>}
                   {scan === 'done' && (
                     <p className="ok-txt">Готово — цифры ниже взяты отсюда. Можно поправить.</p>
                   )}
                   {scan === 'failed' && (
-                    <p className="warn-txt">
-                      Не разобрали картинку. Введите цифры руками — на карточке будет пометка
-                      «со слов».
+                    <p className="reading">
+                      Скрин сохранён. Впишите подписчиков и охват сами — читать их с
+                      картинки мы пока не научились.
                     </p>
                   )}
                   <button className="btn small ghost" onClick={() => shotRef.current?.click()}>
@@ -271,9 +271,10 @@ export default function Card() {
                 </span>
                 Загрузите скрин статистики
                 <span className="fine">
-                  Экран «Статистика» из Instagram или TikTok. Подписчиков и охват прочитаем
-                  сами.
+                  Экран «Статистика» из Instagram или TikTok. Модератор сверит по нему ваши
+                  цифры.
                 </span>
+                <span className="pill soon">скоро: цифры прочитаются сами</span>
               </button>
             )}
             <input

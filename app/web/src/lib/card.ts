@@ -196,16 +196,11 @@ export const fakeCardApi: CardApi = {
   },
 
   async readScreenshot() {
-    // ЗАГЛУШКА вместо настоящего ИИ-чтения. Настоящее — на сервере, нужен ключ.
-    await wait(1600)
-    const proverka: Proverka = {
-      followers: '48200',
-      reach: '12400',
-      tochnost: 0.93,
-      sovpalo: true,
-      zamechaniya: [],
-    }
-    return { ok: true, followers: '48200', reach: '12400', proverka }
+    // ИИ-чтение отложено по слову владельца 02.09.2026: пока не притворяемся,
+    // что читаем. Скрин принимаем и храним, цифры человек вводит сам.
+    // Включится, когда будет сервер и ключ — меняется только эта функция.
+    await wait(500)
+    return { ok: false }
   },
 
   async save(karta) {
