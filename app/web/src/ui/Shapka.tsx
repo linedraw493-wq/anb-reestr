@@ -38,6 +38,11 @@ export function Shapka() {
             Проверка карточек
           </button>
         )}
+        {ya.rol === 'admin' && (
+          <button className="linkbtn" onClick={() => navigate('/moderator/spiski')}>
+            Списки
+          </button>
+        )}
         <button
           className="linkbtn"
           onClick={async () => {

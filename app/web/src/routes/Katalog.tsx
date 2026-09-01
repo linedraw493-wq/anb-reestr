@@ -87,14 +87,75 @@ export default function Katalog() {
         </p>
       </header>
 
-      {/* только на телефоне: полоска с отбором и числом найденных */}
-      <div className="kat-mob-polosa">
-        <button className="btn small ghost" onClick={() => setShtorka(true)}>
-          Отбор{zadano > 0 ? ` · ${zadano}` : ''}
-        </button>
-        <span className="kat-skolko malo">
-          {gruzim && !vydacha ? 'Ищем…' : `${vydacha?.vsego ?? 0} найдено`}
-        </span>
+      {/* Панель управления. Фильтры — за кнопкой на любом экране:
+          в каталоге главное это карточки, а не отбор во всю страницу. */}
+      <div className="kat-panel">
+        <div className="kat-panel-ryad">
+          <button
+            className={`btn small${zadano > 0 ? '' : ' ghost'} filtr-knopka`}
+            onClick={() => setShtorka(true)}
+          >
+            Фильтры{zadano > 0 ? ` · ${zadano}` : ''}
+          </button>
+
+          <input
+            className="input poisk-pole"
+            type="search"
+            value={poiskPole}
+            placeholder="Поиск по нику"
+            aria-label="Поиск по нику"
+            onChange={(e) => setPoiskPole(e.target.value)}
+          />
+
+          <div className="perekl">
+            <button
+              className={`perekl-b${!naKarte ? ' on' : ''}`}
+              onClick={() => setNaKarte(false)}
+            >
+              Списком
+            </button>
+            <button
+              className={`perekl-b${naKarte ? ' on' : ''}`}
+              onClick={() => setNaKarte(true)}
+            >
+              На карте
+            </button>
+          </div>
+
+          <select
+            className="input malen"
+            value={filtry.poryadok}
+            onChange={(e) => pravit({ poryadok: e.target.value as Poryadok })}
+          >
+            {PORYADKI.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+
+          <span className="kat-skolko">
+            {gruzim && !vydacha ? 'Ищем…' : `${vydacha?.vsego ?? 0} найдено`}
+          </span>
+        </div>
+
+        {/* Что отобрано — видно и снимается одним нажатием. */}
+        {zadano > 0 && (
+          <div className="vybrano">
+            {aktivnye(filtry).map((a) => (
+              <button
+                key={a.key}
+                className="chip on snyat"
+                onClick={() => pravit({ [a.key]: '' } as Partial<Filtry>)}
+              >
+                {a.label} <span aria-hidden="true">×</span>
+              </button>
+            ))}
+            <button className="linkbtn" onClick={() => setAdres(new URLSearchParams())}>
+              сбросить всё
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="kat-grid">
@@ -107,8 +168,8 @@ export default function Katalog() {
           />
           <div className="kat-filtry-inner">
             <div className="kat-fhead">
-              <span className="wordmark">Отбор</span>
-              <button className="linkbtn tolko-mob" onClick={() => setShtorka(false)}>
+              <span className="wordmark">Фильтры</span>
+              <button className="linkbtn" onClick={() => setShtorka(false)}>
                 закрыть
               </button>
               {zadano > 0 && (
@@ -117,17 +178,6 @@ export default function Katalog() {
                 </button>
               )}
             </div>
-
-            <label className="fld">
-              <span className="field-label">Поиск по нику</span>
-              <input
-                className="input"
-                type="search"
-                value={poiskPole}
-                placeholder="@nick"
-                onChange={(e) => setPoiskPole(e.target.value)}
-              />
-            </label>
 
             <div className="fld">
               <span className="field-label">Тематика</span>
@@ -193,16 +243,27 @@ export default function Katalog() {
               </div>
             </div>
 
-            <label className="fld">
-              <span className="field-label">Подписчиков не меньше</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={razdelit(filtry.ot)}
-                placeholder="любое"
-                onChange={(e) => pravit({ ot: e.target.value.replace(/\D/g, '') })}
-              />
-            </label>
+            <div className="fld">
+              <span className="field-label">Подписчиков</span>
+              <div className="two">
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  aria-label="Подписчиков не меньше"
+                  value={razdelit(filtry.ot)}
+                  placeholder="от"
+                  onChange={(e) => pravit({ ot: e.target.value.replace(/\D/g, '') })}
+                />
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  aria-label="Подписчиков не больше"
+                  value={razdelit(filtry.do)}
+                  placeholder="до"
+                  onChange={(e) => pravit({ do: e.target.value.replace(/\D/g, '') })}
+                />
+              </div>
+            </div>
 
             <label className="fld">
               <span className="field-label">Охват не меньше</span>
@@ -227,7 +288,7 @@ export default function Katalog() {
               <span className="fine">Договорные тоже показываем — цена не названа.</span>
             </label>
 
-            <button className="btn tolko-mob" onClick={() => setShtorka(false)}>
+            <button className="btn" onClick={() => setShtorka(false)}>
               Показать {vydacha?.vsego ?? 0}
             </button>
           </div>
@@ -235,39 +296,6 @@ export default function Katalog() {
 
         {/* ------------------------------------------------------- выдача */}
         <div className="kat-vydacha">
-          <div className="kat-verh">
-            <span className="kat-skolko">
-              {gruzim && !vydacha ? 'Ищем…' : `Найдено ${vydacha?.vsego ?? 0}`}
-            </span>
-            <div className="kat-upr">
-              <div className="perekl">
-                <button
-                  className={`perekl-b${!naKarte ? ' on' : ''}`}
-                  onClick={() => setNaKarte(false)}
-                >
-                  Списком
-                </button>
-                <button
-                  className={`perekl-b${naKarte ? ' on' : ''}`}
-                  onClick={() => setNaKarte(true)}
-                >
-                  На карте
-                </button>
-              </div>
-              <select
-                className="input malen"
-                value={filtry.poryadok}
-                onChange={(e) => pravit({ poryadok: e.target.value as Poryadok })}
-              >
-                {PORYADKI.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           {beda && (
             <div className="note err" role="alert">
               <span className="dot" aria-hidden="true">
@@ -377,6 +405,21 @@ function KatalozhnayaKarta({ k }: { k: KartaTip }) {
       </div>
     </Link>
   )
+}
+
+/** Что сейчас отобрано — для чипов «снять». */
+function aktivnye(f: Filtry): { key: keyof Filtry; label: string }[] {
+  const spisok: { key: keyof Filtry; label: string }[] = []
+  if (f.tematika) spisok.push({ key: 'tematika', label: f.tematika })
+  if (f.gorod) spisok.push({ key: 'gorod', label: f.gorod })
+  if (f.rayon) spisok.push({ key: 'rayon', label: f.rayon })
+  if (f.yazyk) spisok.push({ key: 'yazyk', label: f.yazyk })
+  if (f.ot) spisok.push({ key: 'ot', label: `от ${razdelit(f.ot)} подписчиков` })
+  if (f.do) spisok.push({ key: 'do', label: `до ${razdelit(f.do)} подписчиков` })
+  if (f.ohvat_ot) spisok.push({ key: 'ohvat_ot', label: `охват от ${razdelit(f.ohvat_ot)}` })
+  if (f.stavka_do) spisok.push({ key: 'stavka_do', label: `до ${razdelit(f.stavka_do)} ₸` })
+  if (f.poisk) spisok.push({ key: 'poisk', label: `«${f.poisk}»` })
+  return spisok
 }
 
 function initials(nick: string): string {

@@ -802,6 +802,148 @@ async def zavesti(request: Request):
 # ==================================================================== каталог
 
 
+# =============================================================== списки-справочники
+
+
+@app.get("/api/moder/spiski")
+async def spiski(request: Request):
+    """Тематики, города и районы с числом карточек — админ правит без нас."""
+    if await _modertor(request) is None:
+        return _net_prav()
+    async with baza.pul().acquire() as conn:
+        tematiki = await conn.fetch(
+            "select t.id, t.nazvanie, t.vidna,"
+            " (select count(*) from kartochka_tematiki kt where kt.tematika_id = t.id) as skolko"
+            " from tematiki t order by t.poryadok, t.nazvanie"
+        )
+        goroda = await conn.fetch(
+            "select g.id, g.nazvanie, g.vidno,"
+            " (select count(*) from kartochki k where k.gorod_id = g.id) as skolko"
+            " from goroda g order by g.nazvanie"
+        )
+        rayony = await conn.fetch(
+            "select r.id, r.nazvanie, r.vidno, r.gorod_id, g.nazvanie as gorod,"
+            " (select count(*) from kartochki k where k.rayon_id = r.id) as skolko"
+            " from rayony r join goroda g on g.id = r.gorod_id order by g.nazvanie, r.nazvanie"
+        )
+    return {
+        "tematiki": [dict(r) for r in tematiki],
+        "goroda": [dict(r) for r in goroda],
+        "rayony": [dict(r) for r in rayony],
+    }
+
+
+_TABLICY = {
+    "tematika": ("tematiki", "vidna"),
+    "gorod": ("goroda", "vidno"),
+    "rayon": ("rayony", "vidno"),
+}
+
+
+@app.post("/api/moder/spisok")
+async def spisok_pravka(request: Request):
+    """Одна точка на четыре дела: добавить, переименовать, скрыть, слить.
+
+    Удаления нет намеренно: удалишь тематику — поедут все карточки, где она
+    стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
+    """
+    kto = await _modertor(request)
+    if kto is None:
+        return _net_prav()
+    telo = await request.json()
+    tip = telo.get("tip")
+    chto = telo.get("chto")
+    if tip not in _TABLICY:
+        return {"ok": False, "reason": "bad-type"}
+    tablica, pole_vidno = _TABLICY[tip]
+
+    async with baza.pul().acquire() as conn:
+        async with conn.transaction():
+            if chto == "dobavit":
+                nazvanie = (telo.get("nazvanie") or "").strip()
+                if not nazvanie:
+                    return {"ok": False, "reason": "empty"}
+                if tip == "rayon":
+                    await conn.execute(
+                        "insert into rayony (gorod_id, nazvanie) values ($1,$2)"
+                        " on conflict do nothing",
+                        int(telo["gorod_id"]),
+                        nazvanie,
+                    )
+                else:
+                    await conn.execute(
+                        f"insert into {tablica} (nazvanie) values ($1) on conflict do nothing",
+                        nazvanie,
+                    )
+
+            elif chto == "pereimenovat":
+                nazvanie = (telo.get("nazvanie") or "").strip()
+                if not nazvanie:
+                    return {"ok": False, "reason": "empty"}
+                # переименование безопасно: номер тот же, связи целы
+                await conn.execute(
+                    f"update {tablica} set nazvanie = $2 where id = $1",
+                    int(telo["id"]),
+                    nazvanie,
+                )
+
+            elif chto == "skryt":
+                await conn.execute(
+                    f"update {tablica} set {pole_vidno} = $2 where id = $1",
+                    int(telo["id"]),
+                    bool(telo.get("vidno", False)),
+                )
+
+            elif chto == "slit":
+                # Перенести всех из одного в другой и убрать источник из выбора.
+                iz_id, v_id = int(telo["iz_id"]), int(telo["v_id"])
+                if iz_id == v_id:
+                    return {"ok": False, "reason": "same"}
+
+                if tip == "tematika":
+                    # у карточки может уже стоять цель — тогда просто снимаем источник
+                    await conn.execute(
+                        "delete from kartochka_tematiki a where a.tematika_id = $1"
+                        " and exists (select 1 from kartochka_tematiki b"
+                        "   where b.kartochka_id = a.kartochka_id and b.tematika_id = $2)",
+                        iz_id,
+                        v_id,
+                    )
+                    await conn.execute(
+                        "update kartochka_tematiki set tematika_id = $2 where tematika_id = $1",
+                        iz_id,
+                        v_id,
+                    )
+                elif tip == "gorod":
+                    # район принадлежит городу — переносим и его, иначе повиснет
+                    await conn.execute(
+                        "update rayony set gorod_id = $2 where gorod_id = $1", iz_id, v_id
+                    )
+                    await conn.execute(
+                        "update kartochki set gorod_id = $2 where gorod_id = $1", iz_id, v_id
+                    )
+                else:
+                    await conn.execute(
+                        "update kartochki set rayon_id = $2 where rayon_id = $1", iz_id, v_id
+                    )
+
+                await conn.execute(
+                    f"update {tablica} set {pole_vidno} = false where id = $1", iz_id
+                )
+            else:
+                return {"ok": False, "reason": "bad-action"}
+
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kto_id, chto, prichina) values ($1,'popravil',$2)",
+                kto["id"],
+                f"списки: {chto} · {tip}",
+            )
+    return {"ok": True}
+
+
+# ==================================================================== каталог
+
+
 @app.get("/api/glavnaya")
 async def glavnaya():
     """Цифры и подборки для витрины. Публично, вход не нужен."""

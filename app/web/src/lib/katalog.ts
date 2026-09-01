@@ -33,6 +33,7 @@ export type Filtry = {
   rayon: string
   yazyk: string
   ot: string
+  do: string
   ohvat_ot: string
   stavka_do: string
   poisk: string
@@ -46,6 +47,7 @@ export const PUSTYE: Filtry = {
   rayon: '',
   yazyk: '',
   ot: '',
+  do: '',
   ohvat_ot: '',
   stavka_do: '',
   poisk: '',
@@ -54,7 +56,17 @@ export const PUSTYE: Filtry = {
 }
 
 export function skolkoZadano(f: Filtry): number {
-  return [f.tematika, f.gorod, f.rayon, f.yazyk, f.ot, f.ohvat_ot, f.stavka_do, f.poisk].filter(
+  return [
+    f.tematika,
+    f.gorod,
+    f.rayon,
+    f.yazyk,
+    f.ot,
+    f.do,
+    f.ohvat_ot,
+    f.stavka_do,
+    f.poisk,
+  ].filter(
     Boolean,
   ).length
 }
@@ -67,6 +79,7 @@ export function vAdres(f: Filtry): string {
   if (f.rayon) p.set('rayon', f.rayon)
   if (f.yazyk) p.set('yazyk', f.yazyk)
   if (f.ot) p.set('ot', f.ot)
+  if (f.do) p.set('do', f.do)
   if (f.ohvat_ot) p.set('ohvat_ot', f.ohvat_ot)
   if (f.stavka_do) p.set('stavka_do', f.stavka_do)
   if (f.poisk) p.set('poisk', f.poisk)
@@ -84,6 +97,7 @@ export function izAdresa(stroka: string): Filtry {
     rayon: p.get('rayon') ?? '',
     yazyk: p.get('yazyk') ?? '',
     ot: p.get('ot') ?? '',
+    do: p.get('do') ?? '',
     ohvat_ot: p.get('ohvat_ot') ?? '',
     stavka_do: p.get('stavka_do') ?? '',
     poisk: p.get('poisk') ?? '',

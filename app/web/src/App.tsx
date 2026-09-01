@@ -8,6 +8,7 @@ import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
 import Moderator from './routes/Moderator'
+import SpiskiEkran from './routes/Spiski'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
 
       {/* инструмент модератора — на сервере закроется ролью admin */}
       <Route path="/moderator" element={<Moderator />} />
+      <Route path="/moderator/spiski" element={<SpiskiEkran />} />
 
       <Route path="*" element={<Navigate to="/katalog" replace />} />
     </Routes>
