@@ -1,5 +1,5 @@
 import { fakeCardApi, fakeModerApi } from './card'
-import type { CardApi, CardStatus, Karta, ModerApi, ReadResult, Zayavka } from './card'
+import type { CardApi, CardStatus, ModerApi, ReadResult, ZagruzkaKartochki, Zayavka } from './card'
 import { fakeApi } from './fake'
 import { USE_FAKE } from './rezhim'
 import type { AuthApi, CheckResult, InviteState, StartResult } from './types'
@@ -57,7 +57,7 @@ export async function ktoYa(): Promise<Ya> {
 /* ------------------------------------------------------------ карточка */
 
 const liveCardApi: CardApi = {
-  load: () => get<{ karta: Karta; status: CardStatus }>('/api/card'),
+  load: () => get<ZagruzkaKartochki>('/api/card'),
 
   async readScreenshot(file) {
     const telo = new FormData()

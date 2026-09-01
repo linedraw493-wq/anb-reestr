@@ -54,8 +54,15 @@ export type ReadResult =
   /** не разобрали — не блокируем, человек вводит руками (решение 02.09) */
   | { ok: false }
 
+export type ZagruzkaKartochki = {
+  karta: Karta
+  status: CardStatus
+  /** что написал модератор, если карточку вернули */
+  prichinaOtkaza?: string | null
+}
+
 export interface CardApi {
-  load(): Promise<{ karta: Karta; status: CardStatus }>
+  load(): Promise<ZagruzkaKartochki>
   readScreenshot(file: File): Promise<ReadResult>
   save(karta: Karta): Promise<{ ok: true; status: CardStatus }>
 }

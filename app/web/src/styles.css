@@ -6,22 +6,22 @@
 
 :root {
   /* цвет */
-  --paper: #f4f2ec;
-  --surface: #fbfaf6;
-  --ink: #211e1a;
-  --muted: #726c61;
-  --faint: #9a9184;
-  --line: #ded9cd;
-  --line-strong: #cbc3b2;
-  --accent: #b07721;
-  --accent-ink: #7c5310;
-  --accent-soft: #f0e7d4;
+  --paper: #f7f3e9;
+  --surface: #fdfbf5;
+  --ink: #1e1b2e;
+  --muted: #6b6580;
+  --faint: #9b95ad;
+  --line: #e4ddd0;
+  --line-strong: #cec6b8;
+  --accent: #5b52d6;
+  --accent-ink: #3b33a8;
+  --accent-soft: #e9e6fb;
   --on-accent: #ffffff;
-  --good: #2e7150;
-  --good-soft: #e0ede6;
-  --danger: #a5402f;
-  --danger-soft: #f3e2dd;
-  --focus: #b07721;
+  --good: #2b7a63;
+  --good-soft: #dff0ea;
+  --danger: #b03060;
+  --danger-soft: #fae3ec;
+  --focus: #5b52d6;
 
   /* шрифт */
   --font-display: 'Archivo', system-ui, -apple-system, sans-serif;
@@ -36,40 +36,42 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --paper: #16140e;
-    --surface: #211e16;
-    --ink: #efebdf;
-    --muted: #a79e8c;
-    --faint: #7e7767;
-    --line: #332f24;
-    --line-strong: #453f30;
-    --accent: #e3aa4e;
-    --accent-ink: #f0c97f;
-    --accent-soft: #332b18;
-    --on-accent: #1b1811;
-    --good: #5cb98c;
-    --good-soft: #1e2e26;
-    --danger: #e08a76;
-    --danger-soft: #3a241d;
-    --focus: #e3aa4e;
+    --paper: #12111a;
+    --surface: #1c1a28;
+    --ink: #efecf7;
+    --muted: #a49dba;
+    --faint: #7a7392;
+    --line: #2b2839;
+    --line-strong: #3d3853;
+    --accent: #8f86f5;
+    --accent-ink: #b3abff;
+    --accent-soft: #241f3d;
+    --on-accent: #14121f;
+    --good: #5cc0a2;
+    --good-soft: #17281f;
+    --danger: #e88ab0;
+    --danger-soft: #331926;
+    --focus: #8f86f5;
   }
 }
 
 :root[data-theme='dark'] {
-  --paper: #16140e;
-  --surface: #211e16;
-  --ink: #efebdf;
-  --muted: #a79e8c;
-  --line: #332f24;
-  --line-strong: #453f30;
-  --accent: #e3aa4e;
-  --accent-ink: #f0c97f;
-  --accent-soft: #332b18;
-  --on-accent: #1b1811;
-  --good: #5cb98c;
-  --danger: #e08a76;
-  --danger-soft: #3a241d;
-  --focus: #e3aa4e;
+  --paper: #12111a;
+  --surface: #1c1a28;
+  --ink: #efecf7;
+  --muted: #a49dba;
+  --faint: #7a7392;
+  --line: #2b2839;
+  --line-strong: #3d3853;
+  --accent: #8f86f5;
+  --accent-ink: #b3abff;
+  --accent-soft: #241f3d;
+  --on-accent: #14121f;
+  --good: #5cc0a2;
+  --good-soft: #17281f;
+  --danger: #e88ab0;
+  --danger-soft: #331926;
+  --focus: #8f86f5;
 }
 
 /* --------------------------------------------------------------------- сброс */
@@ -1497,4 +1499,29 @@ select.input[disabled] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Карточку вернули: блогер должен видеть, что именно поправить. */
+.vernuli {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  padding: 15px 18px;
+  margin-bottom: 22px;
+}
+
+.v-head {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--danger);
+}
+
+.v-txt {
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }

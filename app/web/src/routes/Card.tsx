@@ -27,6 +27,7 @@ export default function Card() {
   const [tried, setTried] = useState(false)
   const [vstavka, setVstavka] = useState('')
   const [ssylkaBad, setSsylkaBad] = useState(false)
+  const [otkaz, setOtkaz] = useState<string | null>(null)
   const photoRef = useRef<HTMLInputElement>(null)
   const shotRef = useRef<HTMLInputElement>(null)
 
@@ -36,6 +37,7 @@ export default function Card() {
       if (!alive) return
       setK(r.karta)
       setStatus(r.status)
+      setOtkaz(r.prichinaOtkaza ?? null)
     })
     return () => {
       alive = false
@@ -99,6 +101,7 @@ export default function Card() {
     const res = await cardApi.save(k)
     setSending(false)
     setStatus(res.status)
+    setOtkaz(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -129,6 +132,14 @@ export default function Card() {
           отправите — карточку посмотрит модератор Ассоциации, потом она появится в каталоге.
         </p>
       </header>
+
+      {otkaz && (
+        <div className="vernuli" role="alert">
+          <span className="v-head">Карточку вернули на доработку</span>
+          <p className="v-txt">{otkaz}</p>
+          <p className="fine">Поправьте, что просят, и отправьте снова.</p>
+        </div>
+      )}
 
       <div className="form-grid">
         <aside className="side">
@@ -442,7 +453,11 @@ export default function Card() {
           )}
 
           <button className="btn" disabled={sending} onClick={send}>
-            {sending ? 'Отправляем…' : 'Отправить на проверку'}
+            {sending
+              ? 'Отправляем…'
+              : otkaz
+                ? 'Отправить на проверку снова'
+                : 'Отправить на проверку'}
           </button>
           <p className="fine">
             Карточку посмотрит модератор Ассоциации. После проверки она появится в каталоге.
@@ -461,7 +476,7 @@ export default function Card() {
           Готово {gotovo(k)} из {OBYAZATELNO.length}
         </span>
         <button className="btn small" disabled={sending} onClick={send}>
-          {sending ? 'Отправляем…' : 'Отправить'}
+          {sending ? 'Отправляем…' : otkaz ? 'Отправить снова' : 'Отправить'}
         </button>
       </div>
     </div>

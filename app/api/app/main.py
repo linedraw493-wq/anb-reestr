@@ -136,6 +136,12 @@ async def spravochniki():
 async def priglashenie(token: str):
     async with baza.pul().acquire() as conn:
         zapis = await vhod.zhivoe_priglashenie(conn, token)
+        if zapis is not None:
+            # Заказчик должен видеть, кто ссылку открыл, а кто нет.
+            await conn.execute(
+                "update priglasheniya set otkryto_v = coalesce(otkryto_v, now()) where id = $1",
+                zapis["id"],
+            )
     if zapis is None:
         return {"status": "dead"}
     return {
@@ -344,7 +350,14 @@ async def moya_kartochka(request: Request):
             kartochka["id"],
         )
 
-    return {"karta": karta, "status": kartochka["status"], "pravkaNaProverke": bool(otkrytaya_pravka)}
+    return {
+        "karta": karta,
+        "status": kartochka["status"],
+        "pravkaNaProverke": bool(otkrytaya_pravka),
+        # Модератор пишет причину — блогер должен её увидеть, иначе он не
+        # понимает, что поправить, и отправляет то же самое ещё раз.
+        "prichinaOtkaza": kartochka["prichina_otkaza"],
+    }
 
 
 @app.post("/api/card/photo")
