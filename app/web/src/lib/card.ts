@@ -74,6 +74,8 @@ export interface ModerApi {
   remove(id: string): Promise<void>
   update(karta: Karta): Promise<void>
   create(telefon: string, nick: string): Promise<Zayavka>
+  /** убрать из каталога, не теряя данных — спека, день 5 */
+  skryt(id: string, skryt: boolean): Promise<void>
 }
 
 export const pustayaKarta: Karta = {
@@ -251,6 +253,11 @@ export const fakeModerApi: ModerApi = {
     await wait(250)
     const z = zayavki.find((x) => x.karta.id === karta.id)
     if (z) z.karta = { ...karta }
+  },
+  async skryt(id, pryachem) {
+    await wait(200)
+    const z = zayavki.find((x) => x.karta.id === id)
+    if (z) z.status = pryachem ? 'draft' : 'published'
   },
   async create(_telefon: string, nick: string) {
     await wait(250)

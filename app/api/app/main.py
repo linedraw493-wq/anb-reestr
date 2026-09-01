@@ -7,6 +7,8 @@
 
 import io
 import logging
+import secrets
+from datetime import timedelta
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -800,6 +802,200 @@ async def zavesti(request: Request):
 
 
 # ==================================================================== каталог
+
+
+# ========================================================= приглашения и коды
+
+
+@app.get("/api/moder/priglasheniya")
+async def priglasheniya_spisok(request: Request, poisk: str | None = None):
+    """Список ссылок с состоянием. Спека, день 2-3 и день 5: «выпуск инвайтов»."""
+    if await _modertor(request) is None:
+        return _net_prav()
+
+    usloviya = ["l.udalen_v is null"]
+    znach: list[Any] = []
+    if poisk:
+        znach.append("%" + poisk.strip() + "%")
+        usloviya.append("(k.nik ilike $1 or l.telefon ilike $1)")
+
+    async with baza.pul().acquire() as conn:
+        stroki = await conn.fetch(
+            "select l.id as chelovek_id, l.telefon, k.nik, k.status,"
+            " p.token, p.godno_do, p.otkryto_v, p.ispolzovano_v"
+            " from lyudi l"
+            " left join kartochki k on k.chelovek_id = l.id"
+            " left join lateral ("
+            "   select * from priglasheniya pp where pp.chelovek_id = l.id"
+            "   order by pp.sozdano_v desc limit 1) p on true"
+            " where l.rol = 'blogger' and " + " and ".join(usloviya)
+            + " order by k.nik nulls last limit 500",
+            *znach,
+        )
+
+    def sostoyanie(r) -> str:
+        if r["status"] in ("published", "moderation", "rejected"):
+            return "zaregistrirovalsya"
+        if r["token"] is None:
+            return "net-ssylki"
+        if r["ispolzovano_v"]:
+            return "ispolzovana"
+        if r["godno_do"] and r["godno_do"] < vhod.teper():
+            return "prosrochena"
+        if r["otkryto_v"]:
+            return "otkryl"
+        return "ne-otkryval"
+
+    return [
+        {
+            "chelovekId": r["chelovek_id"],
+            "nik": r["nik"] or "",
+            "telefon": vhod.maska(r["telefon"]),
+            "estTelefon": bool(r["telefon"]),
+            "ssylka": ("/i/" + r["token"]) if r["token"] else None,
+            "sostoyanie": sostoyanie(r),
+            "godnoDo": r["godno_do"].strftime("%d.%m.%Y") if r["godno_do"] else None,
+        }
+        for r in stroki
+    ]
+
+
+@app.post("/api/moder/priglashenie")
+async def vypustit_priglashenie(request: Request):
+    """Выпустить новую ссылку. Старые живые гасим — иначе их станет две."""
+    kto = await _modertor(request)
+    if kto is None:
+        return _net_prav()
+    chelovek_id = int((await request.json()).get("chelovekId"))
+
+    async with baza.pul().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "update priglasheniya set ispolzovano_v = now()"
+                " where chelovek_id = $1 and ispolzovano_v is null",
+                chelovek_id,
+            )
+            token = await vhod.novoe_priglashenie(conn, chelovek_id, kto["id"])
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kto_id, chto, prichina)"
+                " values ($1,'zavel','выпущено приглашение')",
+                kto["id"],
+            )
+    return {"ok": True, "ssylka": "/i/" + token}
+
+
+@app.post("/api/moder/kod")
+async def vydat_rezervnyy_kod(request: Request):
+    """Резервный код — спека, день 5.
+
+    Код НЕ уходит в Telegram: администратор читает его с экрана и передаёт
+    человеку голосом. Нужен, когда доставка не сработала. Живой код у
+    человека при этом гаснет, чтобы их не стало два.
+    """
+    kto = await _modertor(request)
+    if kto is None:
+        return _net_prav()
+    chelovek_id = int((await request.json()).get("chelovekId"))
+
+    kod = "%06d" % secrets.randbelow(1_000_000)
+    async with baza.pul().acquire() as conn:
+        async with conn.transaction():
+            est = await conn.fetchval("select id from lyudi where id = $1", chelovek_id)
+            if est is None:
+                return {"ok": False, "reason": "no-person"}
+            await conn.execute(
+                "update kody set ispolzovan_v = now()"
+                " where chelovek_id = $1 and ispolzovan_v is null",
+                chelovek_id,
+            )
+            await conn.execute(
+                "insert into kody (chelovek_id, otpechatok, godin_do) values ($1,$2,$3)",
+                chelovek_id,
+                vhod.otpechatok(kod),
+                vhod.teper() + timedelta(minutes=nastroyki.ZHIZN_KODA_MIN),
+            )
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kto_id, chto, prichina)"
+                " values ($1,'popravil','выдан резервный код')",
+                kto["id"],
+            )
+    return {"ok": True, "kod": kod, "minut": nastroyki.ZHIZN_KODA_MIN}
+
+
+@app.post("/api/moder/skryt")
+async def skryt_kartochku(request: Request):
+    """Скрыть карточку — спека, день 5: «скрыть/добавить».
+
+    Раньше было только «удалить навсегда»: одно нажатие сносило человека
+    вместе с приглашением. Скрытие обратимо, данные целы.
+    """
+    kto = await _modertor(request)
+    if kto is None:
+        return _net_prav()
+    telo = await request.json()
+    kid = int(telo.get("id"))
+    pryachem = bool(telo.get("skryt", True))
+    novyy = "draft" if pryachem else "published"
+
+    async with baza.pul().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "update kartochki set status = $2,"
+                " opublikovana_v = case when $2 = 'published' then now()"
+                " else opublikovana_v end where id = $1",
+                kid,
+                novyy,
+            )
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kartochka_id, kto_id, chto, prichina)"
+                " values ($1,$2,'popravil',$3)",
+                kid,
+                kto["id"],
+                "скрыта из каталога" if pryachem else "возвращена в каталог",
+            )
+    return {"ok": True}
+
+
+@app.get("/api/moder/svodka")
+async def svodka(request: Request):
+    """Дашборд: идёт наполнение или встало. Воронка показывает, где теряем."""
+    if await _modertor(request) is None:
+        return _net_prav()
+
+    async with baza.pul().acquire() as conn:
+        r = await conn.fetchrow(
+            """
+            select
+              (select count(*) from kartochki where status='published')        as v_kataloge,
+              (select count(*) from kartochki where status='moderation')       as zhdut,
+              (select count(*) from kartochki where status='moderation'
+                 and podana_v < now() - interval '1 day')                      as zhdut_dolgo,
+              (select count(*) from kartochki where status='rejected')         as otkloneno,
+              (select count(*) from priglasheniya)                             as vsego_ssylok,
+              (select count(*) from priglasheniya where otkryto_v is not null) as otkryli,
+              (select count(*) from lyudi where rol='blogger'
+                 and poslednii_vhod is not null)                               as voshli,
+              (select count(*) from kartochki k join lyudi l on l.id=k.chelovek_id
+                 where l.rol='blogger' and k.podpischiki is not null)          as zapolnili,
+              (select count(*) from kartochki where status='published'
+                 and opublikovana_v > now() - interval '7 days')               as za_nedelyu,
+              (select coalesce(sum(prosmotry),0) from kartochki)               as prosmotry
+            """
+        )
+    d = dict(r)
+    vsego = d["vsego_ssylok"] or 1
+
+    def dolya(n: int) -> int:
+        return round(n * 100 / vsego)
+
+    d["voronka"] = [
+        {"chto": "Разослано ссылок", "skolko": d["vsego_ssylok"], "dolya": 100},
+        {"chto": "Открыли", "skolko": d["otkryli"], "dolya": dolya(d["otkryli"])},
+        {"chto": "Подтвердили номер", "skolko": d["voshli"], "dolya": dolya(d["voshli"])},
+        {"chto": "Заполнили карточку", "skolko": d["zapolnili"], "dolya": dolya(d["zapolnili"])},
+        {"chto": "В каталоге", "skolko": d["v_kataloge"], "dolya": dolya(d["v_kataloge"])},
+    ]
+    return d
 
 
 # =============================================================== списки-справочники

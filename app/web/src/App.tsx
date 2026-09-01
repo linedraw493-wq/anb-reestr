@@ -8,6 +8,8 @@ import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
 import Moderator from './routes/Moderator'
+import Priglasheniya from './routes/Priglasheniya'
+import Svodka from './routes/Svodka'
 import SpiskiEkran from './routes/Spiski'
 
 export default function App() {
@@ -29,6 +31,8 @@ export default function App() {
       {/* инструмент модератора — на сервере закроется ролью admin */}
       <Route path="/moderator" element={<Moderator />} />
       <Route path="/moderator/spiski" element={<SpiskiEkran />} />
+      <Route path="/moderator/priglasheniya" element={<Priglasheniya />} />
+      <Route path="/moderator/svodka" element={<Svodka />} />
 
       <Route path="*" element={<Navigate to="/katalog" replace />} />
     </Routes>

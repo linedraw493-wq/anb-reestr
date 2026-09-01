@@ -2435,3 +2435,182 @@ select.input[disabled] {
   padding: 15px 17px;
   margin-top: 14px;
 }
+
+/* ------------------------------------------------- приглашения и сводка */
+
+.prig-panel {
+  margin: 16px 0 12px;
+}
+
+.prig-spisok {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.prig-spisok li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 11px 14px;
+}
+
+.prig-nik {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  min-width: 150px;
+}
+
+.prig-tel {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.prig-knopki {
+  margin-left: auto;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.rezerv {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-2);
+  border-radius: var(--radius);
+  background: var(--accent-2-soft);
+  padding: 16px 19px;
+  margin-bottom: 18px;
+}
+
+.rezerv-kod {
+  font-family: var(--font-mono);
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.rezerv .v-head {
+  color: var(--accent-2);
+}
+
+/* --------------------------------------------------------------- сводка */
+
+.plitki4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.kp {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 16px 18px;
+}
+
+.kp .v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kp .k {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.kp .d {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--good);
+  margin-top: 5px;
+}
+
+.kp .d.trevoga {
+  color: var(--danger);
+}
+
+.voronka-blok {
+  align-items: stretch;
+}
+
+.voronka {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.vor-str {
+  display: grid;
+  grid-template-columns: 165px 1fr auto;
+  gap: 13px;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.vor-imya {
+  color: var(--muted);
+}
+
+.vor-pol {
+  height: 22px;
+  border-radius: 6px;
+  background: var(--sunk, var(--paper));
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.vor-pol i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 5px;
+}
+
+.vor-pol i.p2 {
+  background: var(--accent-2);
+}
+
+.vor-n {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.svodka-knopki {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+@media (max-width: 620px) {
+  .vor-str {
+    grid-template-columns: 118px 1fr auto;
+    font-size: 0.75rem;
+  }
+
+  .prig-knopki {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -115,6 +115,7 @@ const liveModerApi: ModerApi = {
   remove: async (id) => void (await post('/api/moder/remove', { id })),
   update: async (karta) => void (await post('/api/moder/update', { ...karta, id: karta.id })),
   create: (telefon, nick) => post<Zayavka>('/api/moder/create', { telefon, nick }),
+  skryt: async (id, skryt) => void (await post('/api/moder/skryt', { id, skryt })),
 }
 
 export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi

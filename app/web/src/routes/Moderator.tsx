@@ -437,11 +437,37 @@ export default function Moderator() {
                   Отклонить
                 </button>
 
+                {tekushchaya.status === 'published' ? (
+                  <button
+                    className="btn ghost"
+                    disabled={zanyat}
+                    onClick={() => void deystvie(() => moderApi.skryt(pravka.id, true))}
+                  >
+                    Скрыть из каталога
+                  </button>
+                ) : (
+                  <button
+                    className="btn ghost"
+                    disabled={zanyat}
+                    onClick={() => void deystvie(() => moderApi.skryt(pravka.id, false))}
+                  >
+                    Вернуть в каталог
+                  </button>
+                )}
+                <p className="fine">
+                  Скрытая карточка пропадает из каталога, но данные целы и её можно вернуть.
+                </p>
+
                 <button
                   className="btn danger"
                   disabled={zanyat}
                   onClick={() => {
-                    if (confirm(`Удалить карточку ${pravka.nick}? Это не отменить.`))
+                    if (
+                      confirm(
+                        `Удалить ${pravka.nick} НАВСЕГДА? Вместе с карточкой пропадёт человек ` +
+                          `и его приглашение. Если нужно просто убрать из каталога — жмите «Скрыть».`,
+                      )
+                    )
                       void deystvie(() => moderApi.remove(pravka.id))
                   }}
                 >
