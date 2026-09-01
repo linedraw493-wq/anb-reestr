@@ -105,10 +105,15 @@ input {
 
 /* ------------------------------------------------------------------- каркас */
 
+/* Телефон — одна колонка. Большой экран получает вторую (см. ниже). */
 .page {
   min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.pane {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
@@ -133,6 +138,110 @@ input {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* ------------------------------------------------- левая панель, от 900px */
+
+.pitch {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .page {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+
+  .pitch {
+    display: flex;
+    align-items: center;
+    padding: 48px;
+    background: var(--paper);
+    border-right: 1px solid var(--line);
+  }
+
+  .pane {
+    background: var(--surface);
+  }
+
+  /* на широком экране карточка уже не карточка — фон и так отделяет */
+  .card {
+    background: transparent;
+    border-color: transparent;
+    padding: 0;
+    max-width: 340px;
+  }
+
+  /* подпись сверху остаётся только слева, чтобы не повторяться дважды */
+  .pane-mark {
+    display: none;
+  }
+}
+
+.pitch-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 420px;
+}
+
+.pitch-h {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.75rem, 2.6vw, 2.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  max-width: 15ch;
+}
+
+.pitch-p {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  max-width: 38ch;
+}
+
+.taste {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tcard {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.tcard-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tcard-txt .nm {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.tcard-txt .mt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.tcard-v {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 h1 {
