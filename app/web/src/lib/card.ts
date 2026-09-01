@@ -275,7 +275,9 @@ export function razdelit(n: string): string {
 export function korotko(n: string): string {
   const d = Number(n.replace(/\D/g, ''))
   if (!d) return '—'
-  if (d >= 1_000_000) return `${(d / 1_000_000).toFixed(1).replace('.0', '')}M`
+  // 999 999 округляется до 1000.0K — это читается как ошибка, поэтому
+  // округляем сначала, а уже потом решаем, тысячи это или миллионы.
+  if (Math.round(d / 100_000) >= 10) return `${(d / 1_000_000).toFixed(1).replace('.0', '')}M`
   if (d >= 1000) return `${(d / 1000).toFixed(1).replace('.0', '')}K`
   return String(d)
 }

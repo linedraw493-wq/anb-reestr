@@ -806,12 +806,19 @@ async def zavesti(request: Request):
 async def katalog(
     tematika: str | None = None,
     gorod: str | None = None,
+    rayon: str | None = None,
     yazyk: str | None = None,
     ot: int | None = None,
     do: int | None = None,
+    ohvat_ot: int | None = None,
+    stavka_do: int | None = None,
+    poisk: str | None = None,
+    poryadok: str = "ohvat",
+    stranica: int = 1,
+    na_stranice: int = 24,
 ):
-    """Публичный: каталог видим всем — решение владельца 02.09.2026."""
-    usloviya = ["k.status = 'published'"]
+    """Публичный каталог: каталог видим всем — решение владельца 02.09.2026."""
+    usloviya = ["k.status = 'published'", "l.udalen_v is null"]
     znacheniya: list[Any] = []
 
     def dobavit(uslovie: str, znachenie: Any) -> None:
@@ -820,25 +827,103 @@ async def katalog(
 
     if gorod:
         dobavit("g.nazvanie = ?", gorod)
+    if rayon:
+        dobavit("r.nazvanie = ?", rayon)
     if yazyk:
         dobavit("k.yazyk = ?", yazyk)
     if ot:
         dobavit("k.podpischiki >= ?", ot)
     if do:
         dobavit("k.podpischiki <= ?", do)
+    if ohvat_ot:
+        dobavit("k.ohvat >= ?", ohvat_ot)
+    if stavka_do:
+        # «договорная» не отсеиваем: цена не названа, значит может подойти
+        dobavit("(k.stavka <= ? or k.dogovornaya)", stavka_do)
+    if poisk:
+        dobavit("k.nik ilike ?", f"%{poisk.strip()}%")
     if tematika:
         dobavit(
-            "exists (select 1 from kartochka_tematiki kt join tematiki t on t.id=kt.tematika_id"
+            "exists (select 1 from kartochka_tematiki kt join tematiki t on t.id = kt.tematika_id"
             " where kt.kartochka_id = k.id and t.nazvanie = ?)",
             tematika,
         )
 
-    zapros = KARTOCHKA_SELECT + " where " + " and ".join(usloviya)
-    zapros += " order by k.podpischiki desc nulls last limit 200"
+    gde = " and ".join(usloviya)
+    osnova = KARTOCHKA_SELECT + " join lyudi l on l.id = k.chelovek_id where " + gde
+
+    sortirovki = {
+        "ohvat": "k.ohvat desc nulls last",
+        "podpischiki": "k.podpischiki desc nulls last",
+        "deshevle": "k.stavka asc nulls last",
+        "novye": "k.opublikovana_v desc nulls last",
+    }
+    sortirovka = sortirovki.get(poryadok, sortirovki["ohvat"])
+
+    na_stranice = max(1, min(na_stranice, 60))
+    smeshchenie = max(0, (max(1, stranica) - 1) * na_stranice)
 
     async with baza.pul().acquire() as conn:
-        stroki = await conn.fetch(zapros, *znacheniya)
-        return [await _karta_slovarem(conn, s) for s in stroki]
+        vsego = await conn.fetchval(
+            "select count(*) from kartochki k"
+            " left join goroda g on g.id = k.gorod_id"
+            " left join rayony r on r.id = k.rayon_id"
+            " join lyudi l on l.id = k.chelovek_id where " + gde,
+            *znacheniya,
+        )
+        stroki = await conn.fetch(
+            f"{osnova} order by {sortirovka}, k.id desc limit {na_stranice} offset {smeshchenie}",
+            *znacheniya,
+        )
+        karty = [await _karta_slovarem(conn, s) for s in stroki]
+
+        # Точки для карты считаем по тем же условиям, но без страниц:
+        # человек должен видеть, где живёт вся его выборка, а не её кусок.
+        tochki = await conn.fetch(
+            "select g.nazvanie as gorod, g.shirota, g.dolgota, count(*) as skolko"
+            " from kartochki k"
+            " left join goroda g on g.id = k.gorod_id"
+            " left join rayony r on r.id = k.rayon_id"
+            " join lyudi l on l.id = k.chelovek_id"
+            " where " + gde + " and g.shirota is not null"
+            " group by g.nazvanie, g.shirota, g.dolgota order by 4 desc",
+            *znacheniya,
+        )
+
+    return {
+        "vsego": vsego,
+        "stranica": max(1, stranica),
+        "stranic": max(1, -(-vsego // na_stranice)),
+        "karty": karty,
+        "tochki": [
+            {
+                "gorod": t["gorod"],
+                "shirota": float(t["shirota"]),
+                "dolgota": float(t["dolgota"]),
+                "skolko": t["skolko"],
+            }
+            for t in tochki
+        ],
+    }
+
+
+@app.get("/api/katalog/{kartochka_id}")
+async def odna_kartochka(kartochka_id: int):
+    """Страница одного блогера. Телефон наружу не отдаём никогда."""
+    async with baza.pul().acquire() as conn:
+        kartochka = await conn.fetchrow(
+            KARTOCHKA_SELECT
+            + " join lyudi l on l.id = k.chelovek_id"
+            + " where k.id = $1 and k.status = 'published' and l.udalen_v is null",
+            kartochka_id,
+        )
+        if kartochka is None:
+            return JSONResponse({"ok": False, "reason": "not-found"}, status_code=404)
+        await conn.execute(
+            "update kartochki set prosmotry = prosmotry + 1 where id = $1", kartochka_id
+        )
+        karta = await _karta_slovarem(conn, kartochka)
+    return {"ok": True, "karta": karta, "prosmotry": (kartochka["prosmotry"] or 0) + 1}
 
 
 # ============================================================ отдача страниц
