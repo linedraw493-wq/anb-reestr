@@ -1,16 +1,451 @@
-import { Shell } from '../ui/Shell'
+import { useEffect, useRef, useState } from 'react'
+import { cardApi, USE_FAKE } from '../lib/api'
+import {
+  gotovo,
+  OBYAZATELNO,
+  pustayaKarta,
+  razdelit,
+  type CardStatus,
+  type Karta,
+} from '../lib/card'
+import { fakeHint } from '../lib/fake'
+import { GORODA, MAX_TEMATIK, SETI, TEMATIKI, YAZYKI } from '../lib/spravochniki'
+import { Preview } from '../ui/Preview'
 
-/** Заглушка следующего куска. Сама карточка — отдельная задача. */
+type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
+
+/** Окно регистрации карточки. Вариант А — форма и живой предпросмотр. */
 export default function Card() {
-  return (
-    <Shell>
-      <h1>Ваша карточка</h1>
-      <div className="stub">
-        Здесь будет анкета блогера: ник, соцсети, тематика, район, язык, ставка и загрузка
-        скрина статистики.
-        <br />
-        <br />В этот кусок работы карточка не входит — цепочка входа заканчивается здесь.
+  const [k, setK] = useState<Karta>(pustayaKarta)
+  const [status, setStatus] = useState<CardStatus | null>(null)
+  const [scan, setScan] = useState<ScreenState>('empty')
+  const [sending, setSending] = useState(false)
+  const [tried, setTried] = useState(false)
+  const photoRef = useRef<HTMLInputElement>(null)
+  const shotRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let alive = true
+    cardApi.load().then((r) => {
+      if (!alive) return
+      setK(r.karta)
+      setStatus(r.status)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  function set<K extends keyof Karta>(key: K, value: Karta[K]) {
+    setK((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function toggleTema(t: string) {
+    setK((prev) => {
+      const has = prev.tematiki.includes(t)
+      if (has) return { ...prev, tematiki: prev.tematiki.filter((x) => x !== t) }
+      if (prev.tematiki.length >= MAX_TEMATIK) return prev
+      return { ...prev, tematiki: [...prev.tematiki, t] }
+    })
+  }
+
+  async function onShot(file: File | undefined) {
+    if (!file) return
+    setK((prev) => ({ ...prev, screenshot: URL.createObjectURL(file) }))
+    setScan('reading')
+    const res = await cardApi.readScreenshot(file)
+    if (res.ok) {
+      setK((prev) => ({
+        ...prev,
+        followers: res.followers,
+        reach: res.reach,
+        istochnik: 'screen',
+      }))
+      setScan('done')
+    } else {
+      // Не блокируем: цифры вводятся руками, на карточке «со слов».
+      setScan('failed')
+      setK((prev) => ({ ...prev, istochnik: 'words' }))
+    }
+  }
+
+  async function send() {
+    setTried(true)
+    if (gotovo(k) < OBYAZATELNO.length || sending) return
+    setSending(true)
+    const res = await cardApi.save(k)
+    setSending(false)
+    setStatus(res.status)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (status === null) {
+    return (
+      <div className="form-page">
+        <div className="spinner" role="status" aria-label="Загружаем карточку" />
       </div>
-    </Shell>
+    )
+  }
+
+  if (status === 'moderation' || status === 'published') {
+    return <Sent k={k} published={status === 'published'} />
+  }
+
+  const nedostaet = OBYAZATELNO.filter((f) => !f.done(k))
+  const rayony = GORODA[k.gorod] ?? []
+
+  return (
+    <div className="form-page">
+      <header className="form-head">
+        <div className="wordmark">Ассоциация блогеров</div>
+        <h1>Ваша карточка</h1>
+        <p className="sub">
+          Это ваше объявление в реестре: по нему рекламодатели будут вас находить. Когда
+          отправите — карточку посмотрит модератор Ассоциации, потом она появится в каталоге.
+        </p>
+      </header>
+
+      <div className="form-grid">
+        {/* ------------------------------------------------- предпросмотр */}
+        <aside className="side">
+          <div className="side-inner">
+            <div className="wordmark">Так вас увидят</div>
+            <Preview k={k} />
+            <ul className="ready">
+              {OBYAZATELNO.map((f) => (
+                <li key={f.key} className={f.done(k) ? 'on' : ''}>
+                  <span className="tick" aria-hidden="true">
+                    {f.done(k) ? '✓' : '○'}
+                  </span>
+                  {f.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        {/* ------------------------------------------------------- поля */}
+        <div className="fields">
+          <section className="block">
+            <h2>Кто вы</h2>
+
+            <div className="photo-row">
+              {k.photo ? (
+                <img className="ava ava-img big" src={k.photo} alt="" />
+              ) : (
+                <span className="ava big" aria-hidden="true">
+                  ?
+                </span>
+              )}
+              <div>
+                <button className="btn small ghost" onClick={() => photoRef.current?.click()}>
+                  {k.photo ? 'Заменить фото' : 'Загрузить фото'}
+                </button>
+                <p className="fine">Необязательно, но с фото карточку открывают чаще.</p>
+              </div>
+              <input
+                ref={photoRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) set('photo', URL.createObjectURL(f))
+                }}
+              />
+            </div>
+
+            <label className="fld">
+              <span className="field-label">Ник</span>
+              <input
+                className="input"
+                value={k.nick}
+                placeholder="@vash.nick"
+                onChange={(e) => set('nick', e.target.value)}
+              />
+            </label>
+
+            <div className="fld">
+              <span className="field-label">Соцсети · хотя бы одна</span>
+              <div className="seti">
+                {SETI.map((s) => (
+                  <label key={s.key} className="set-row">
+                    <span className="ic" aria-hidden="true">
+                      {s.short}
+                    </span>
+                    <span className="set-prefix">{s.prefix}</span>
+                    <input
+                      className="input bare"
+                      aria-label={s.name}
+                      value={k.seti[s.key] ?? ''}
+                      placeholder="имя"
+                      onChange={(e) => set('seti', { ...k.seti, [s.key]: e.target.value })}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="block">
+            <h2>Цифры</h2>
+
+            {k.screenshot ? (
+              <div className="shot">
+                <img src={k.screenshot} alt="Загруженный скрин статистики" />
+                <div className="shot-txt">
+                  {scan === 'reading' && <p className="reading">Читаем скрин…</p>}
+                  {scan === 'done' && (
+                    <p className="ok-txt">Готово — цифры ниже взяты отсюда. Можно поправить.</p>
+                  )}
+                  {scan === 'failed' && (
+                    <p className="warn-txt">
+                      Не разобрали картинку. Введите цифры руками — на карточке будет пометка
+                      «со слов».
+                    </p>
+                  )}
+                  <button className="btn small ghost" onClick={() => shotRef.current?.click()}>
+                    Заменить скрин
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="drop" onClick={() => shotRef.current?.click()}>
+                <span className="big" aria-hidden="true">
+                  ▤
+                </span>
+                Загрузите скрин статистики
+                <span className="fine">
+                  Экран «Статистика» из Instagram или TikTok. Подписчиков и охват прочитаем
+                  сами.
+                </span>
+              </button>
+            )}
+            <input
+              ref={shotRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => void onShot(e.target.files?.[0])}
+            />
+
+            <div className="two">
+              <label className="fld">
+                <span className="field-label">Подписчики</span>
+                <span className="input-wrap">
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    value={razdelit(k.followers)}
+                    placeholder="48 200"
+                    onChange={(e) => {
+                      set('followers', e.target.value.replace(/\D/g, ''))
+                      set('istochnik', 'words')
+                    }}
+                  />
+                  <span className={`pill ${k.istochnik === 'screen' ? 'ok' : 'say'}`}>
+                    {k.istochnik === 'screen' ? 'со скрина' : 'со слов'}
+                  </span>
+                </span>
+              </label>
+
+              <label className="fld">
+                <span className="field-label">Охват одного поста</span>
+                <span className="input-wrap">
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    value={razdelit(k.reach)}
+                    placeholder="12 400"
+                    onChange={(e) => {
+                      set('reach', e.target.value.replace(/\D/g, ''))
+                      set('istochnik', 'words')
+                    }}
+                  />
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="block">
+            <h2>Про работу</h2>
+
+            <div className="fld">
+              <span className="field-label">
+                Тематика · до {MAX_TEMATIK} · выбрано {k.tematiki.length}
+              </span>
+              <div className="chips">
+                {TEMATIKI.map((t) => {
+                  const on = k.tematiki.includes(t)
+                  const full = !on && k.tematiki.length >= MAX_TEMATIK
+                  return (
+                    <button
+                      key={t}
+                      className={`chip${on ? ' on' : ''}`}
+                      disabled={full}
+                      aria-pressed={on}
+                      onClick={() => toggleTema(t)}
+                    >
+                      {t}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="two">
+              <label className="fld">
+                <span className="field-label">Город</span>
+                <select
+                  className="input"
+                  value={k.gorod}
+                  onChange={(e) => {
+                    set('gorod', e.target.value)
+                    set('rayon', '')
+                  }}
+                >
+                  <option value="">Выберите</option>
+                  {Object.keys(GORODA).map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="fld">
+                <span className="field-label">Район</span>
+                <select
+                  className="input"
+                  value={k.rayon}
+                  disabled={rayony.length === 0}
+                  onChange={(e) => set('rayon', e.target.value)}
+                >
+                  <option value="">{rayony.length ? 'Выберите' : 'Не нужен'}</option>
+                  {rayony.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="fld">
+              <span className="field-label">Язык контента</span>
+              <div className="chips">
+                {YAZYKI.map((y) => (
+                  <button
+                    key={y}
+                    className={`chip${k.yazyk === y ? ' on' : ''}`}
+                    aria-pressed={k.yazyk === y}
+                    onClick={() => set('yazyk', y)}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="fld">
+              <span className="field-label">Ставка за пост</span>
+              <div className="two tight">
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  disabled={k.dogovornaya}
+                  value={razdelit(k.stavka)}
+                  placeholder="60 000 ₸"
+                  onChange={(e) => set('stavka', e.target.value.replace(/\D/g, ''))}
+                />
+                <label className="consent tight">
+                  <input
+                    type="checkbox"
+                    checked={k.dogovornaya}
+                    onChange={(e) => set('dogovornaya', e.target.checked)}
+                  />
+                  <span>Договорная</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="block">
+            <h2>Как с вами связаться</h2>
+            <p className="fine">
+              Соцсети из карточки видны всегда. Телефон — только если вы сами разрешите.
+            </p>
+            <label className="switch-row">
+              <input
+                type="checkbox"
+                checked={k.showPhone}
+                onChange={(e) => set('showPhone', e.target.checked)}
+              />
+              <span className="switch" aria-hidden="true" />
+              <span>
+                Показывать телефон {k.phoneMasked} в карточке
+                <span className="fine">Без этого рекламодатель напишет через соцсети.</span>
+              </span>
+            </label>
+          </section>
+
+          {tried && nedostaet.length > 0 && (
+            <div className="note err" role="alert">
+              <span className="dot" aria-hidden="true">
+                !
+              </span>
+              <span>Осталось заполнить: {nedostaet.map((f) => f.label.toLowerCase()).join(', ')}.</span>
+            </div>
+          )}
+
+          <button className="btn" disabled={sending} onClick={send}>
+            {sending ? 'Отправляем…' : 'Отправить на проверку'}
+          </button>
+          <p className="fine">
+            Карточку посмотрит модератор Ассоциации. После проверки она появится в каталоге.
+          </p>
+
+          {USE_FAKE && (
+            <div className="note hint" role="status">
+              {fakeHint}. Чтение скрина тоже поддельное — цифры подставляются готовые.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* нижняя полоса — только на телефоне */}
+      <div className="bar">
+        <span className="bar-txt">
+          Готово {gotovo(k)} из {OBYAZATELNO.length}
+        </span>
+        <button className="btn small" disabled={sending} onClick={send}>
+          {sending ? 'Отправляем…' : 'Отправить'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Экран после отправки. */
+function Sent({ k, published }: { k: Karta; published: boolean }) {
+  return (
+    <div className="form-page narrow">
+      <header className="form-head">
+        <div className="wordmark">Ассоциация блогеров</div>
+        <h1>{published ? 'Карточка в каталоге' : 'Карточка на проверке'}</h1>
+        <p className="sub">
+          {published
+            ? 'Вас уже могут найти по фильтрам каталога.'
+            : 'Модератор Ассоциации посмотрит её и опубликует в каталоге. Обычно это занимает день. Мы сообщим, когда карточка появится.'}
+        </p>
+      </header>
+      <div className="sent-card">
+        <div className="wordmark">Так вас увидят</div>
+        <Preview k={k} />
+      </div>
+      <p className="fine center">
+        Пока идёт проверка, карточку можно поправить — напишите администратору.
+      </p>
+    </div>
   )
 }

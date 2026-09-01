@@ -10,6 +10,7 @@
   --surface: #fbfaf6;
   --ink: #211e1a;
   --muted: #726c61;
+  --faint: #9a9184;
   --line: #ded9cd;
   --line-strong: #cbc3b2;
   --accent: #b07721;
@@ -17,6 +18,7 @@
   --accent-soft: #f0e7d4;
   --on-accent: #ffffff;
   --good: #2e7150;
+  --good-soft: #e0ede6;
   --danger: #a5402f;
   --danger-soft: #f3e2dd;
   --focus: #b07721;
@@ -38,6 +40,7 @@
     --surface: #211e16;
     --ink: #efebdf;
     --muted: #a79e8c;
+    --faint: #7e7767;
     --line: #332f24;
     --line-strong: #453f30;
     --accent: #e3aa4e;
@@ -45,6 +48,7 @@
     --accent-soft: #332b18;
     --on-accent: #1b1811;
     --good: #5cb98c;
+    --good-soft: #1e2e26;
     --danger: #e08a76;
     --danger-soft: #3a241d;
     --focus: #e3aa4e;
@@ -559,6 +563,561 @@ h1 {
   color: var(--muted);
   line-height: 1.45;
   text-align: center;
+}
+
+/* =====================================================================
+   ОКНО РЕГИСТРАЦИИ КАРТОЧКИ — вариант А: форма и живой предпросмотр.
+   ===================================================================== */
+
+.form-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 34px 20px calc(96px + env(safe-area-inset-bottom));
+}
+
+.form-page.narrow {
+  max-width: 520px;
+}
+
+.form-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.form-head h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.form-head .sub {
+  max-width: 62ch;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 26px;
+  align-items: start;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.side-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .form-page {
+    padding-bottom: 56px;
+  }
+
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr) 322px;
+    gap: 40px;
+  }
+
+  .fields {
+    order: 1;
+  }
+
+  .side {
+    order: 2;
+  }
+
+  .side-inner {
+    position: sticky;
+    top: 28px;
+  }
+}
+
+/* -------------------------------------------------------------- блоки */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+}
+
+.block h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+
+.fld {
+  display: block;
+  min-width: 0;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.two.tight {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+@media (max-width: 460px) {
+  .two {
+    grid-template-columns: 1fr;
+  }
+}
+
+.input-wrap {
+  position: relative;
+  display: block;
+}
+
+.input-wrap .pill {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+select.input {
+  appearance: none;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+select.input[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------ соцсети */
+
+.seti {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 7px 10px;
+}
+
+.set-prefix {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.input.bare {
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  font-size: 0.9375rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.ic.empty {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  color: var(--faint, var(--muted));
+}
+
+/* --------------------------------------------------------------- фото */
+
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ava.big {
+  width: 56px;
+  height: 56px;
+  font-size: 1.1rem;
+}
+
+.ava-img {
+  object-fit: cover;
+}
+
+/* ----------------------------------------------------------- скриншот */
+
+.drop {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.drop:hover {
+  border-color: var(--accent);
+}
+
+.drop .big {
+  font-size: 1.5rem;
+  color: var(--accent);
+}
+
+.drop .fine {
+  max-width: 40ch;
+}
+
+.shot {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.shot img {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.shot-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 0.875rem;
+}
+
+.reading {
+  color: var(--muted);
+}
+
+.ok-txt {
+  color: var(--good);
+}
+
+.warn-txt {
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------- фишки/чипы */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chip {
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 7px 13px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.chip[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ------------------------------------------------------- переключатель */
+
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.switch-row input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch {
+  width: 38px;
+  height: 22px;
+  border-radius: 99px;
+  background: var(--line-strong);
+  flex: 0 0 auto;
+  position: relative;
+  margin-top: 1px;
+  transition: background 0.15s ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 0.15s ease;
+}
+
+.switch-row input:checked + .switch {
+  background: var(--accent);
+}
+
+.switch-row input:checked + .switch::after {
+  transform: translateX(16px);
+}
+
+.switch-row input:focus-visible + .switch {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.switch-row .fine {
+  display: block;
+  margin-top: 2px;
+}
+
+.consent.tight {
+  font-size: 0.875rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- предпросмотр */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 16px;
+}
+
+.pv-top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.pv-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pv-nm {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.pv-mt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.pv-nums {
+  display: flex;
+  gap: 20px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.num {
+  display: flex;
+  flex-direction: column;
+}
+
+.num .v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.num .k {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pv-icons {
+  display: flex;
+  gap: 5px;
+}
+
+.pv-foot {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 99px;
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.pill.ok {
+  background: var(--good-soft, var(--accent-soft));
+  color: var(--good);
+}
+
+.pill.say {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------- чек-лист «готово» */
+
+/* На телефоне список не нужен — нижняя полоса и так считает «готово N из M»,
+   а он зря отодвигает форму на экран вниз. */
+.ready {
+  display: none;
+  list-style: none;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+@media (min-width: 900px) {
+  .ready {
+    display: flex;
+  }
+}
+
+.ready li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ready li.on {
+  color: var(--good);
+}
+
+.ready .tick {
+  font-family: var(--font-mono);
+  width: 12px;
+}
+
+/* ---------------------------------------------- нижняя полоса на телефоне */
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.bar-txt {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.btn.small {
+  width: auto;
+  padding: 9px 18px;
+  font-size: 0.875rem;
+}
+
+@media (min-width: 900px) {
+  .bar {
+    display: none;
+  }
+}
+
+.sent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
 .spinner {
