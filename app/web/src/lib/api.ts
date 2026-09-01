@@ -1,5 +1,5 @@
-import { fakeCardApi } from './card'
-import type { CardApi, Karta, CardStatus, ReadResult } from './card'
+import { fakeCardApi, fakeModerApi } from './card'
+import type { CardApi, CardStatus, Karta, ModerApi, ReadResult, Zayavka } from './card'
 import { fakeApi } from './fake'
 import type { AuthApi, CheckResult, InviteState, StartResult } from './types'
 
@@ -56,3 +56,17 @@ const liveCardApi: CardApi = {
 }
 
 export const cardApi: CardApi = USE_FAKE ? fakeCardApi : liveCardApi
+
+const liveModerApi: ModerApi = {
+  async list() {
+    const res = await fetch('/api/moder/zayavki', { credentials: 'same-origin' })
+    return (await res.json()) as Zayavka[]
+  },
+  approve: async (id) => void (await post('/api/moder/approve', { id })),
+  reject: async (id, prichina) => void (await post('/api/moder/reject', { id, prichina })),
+  remove: async (id) => void (await post('/api/moder/remove', { id })),
+  update: async (karta) => void (await post('/api/moder/update', karta)),
+  create: () => post<Zayavka>('/api/moder/create', {}),
+}
+
+export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi

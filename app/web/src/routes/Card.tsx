@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cardApi, USE_FAKE } from '../lib/api'
 import {
   gotovo,
+  nuzhenRayon,
   OBYAZATELNO,
   pustayaKarta,
   razdelit,
@@ -9,7 +10,8 @@ import {
   type Karta,
 } from '../lib/card'
 import { fakeHint } from '../lib/fake'
-import { GORODA, MAX_TEMATIK, SETI, TEMATIKI, YAZYKI } from '../lib/spravochniki'
+import { razobrat, razobratVse } from '../lib/seti'
+import { GORODA, MAX_TEMATIK, TEMATIKI, YAZYKI } from '../lib/spravochniki'
 import { Preview } from '../ui/Preview'
 
 type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
@@ -21,6 +23,8 @@ export default function Card() {
   const [scan, setScan] = useState<ScreenState>('empty')
   const [sending, setSending] = useState(false)
   const [tried, setTried] = useState(false)
+  const [vstavka, setVstavka] = useState('')
+  const [ssylkaBad, setSsylkaBad] = useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const shotRef = useRef<HTMLInputElement>(null)
 
@@ -40,10 +44,25 @@ export default function Card() {
     setK((prev) => ({ ...prev, [key]: value }))
   }
 
+  function dobavitSsylku() {
+    const razobrana = razobrat(vstavka)
+    if (!razobrana) {
+      setSsylkaBad(true)
+      return
+    }
+    setSsylkaBad(false)
+    setVstavka('')
+    setK((prev) =>
+      prev.ssylki.includes(razobrana.url)
+        ? prev
+        : { ...prev, ssylki: [...prev.ssylki, razobrana.url] },
+    )
+  }
+
   function toggleTema(t: string) {
     setK((prev) => {
-      const has = prev.tematiki.includes(t)
-      if (has) return { ...prev, tematiki: prev.tematiki.filter((x) => x !== t) }
+      if (prev.tematiki.includes(t))
+        return { ...prev, tematiki: prev.tematiki.filter((x) => x !== t) }
       if (prev.tematiki.length >= MAX_TEMATIK) return prev
       return { ...prev, tematiki: [...prev.tematiki, t] }
     })
@@ -60,12 +79,13 @@ export default function Card() {
         followers: res.followers,
         reach: res.reach,
         istochnik: 'screen',
+        proverka: res.proverka,
       }))
       setScan('done')
     } else {
       // Не блокируем: цифры вводятся руками, на карточке «со слов».
       setScan('failed')
-      setK((prev) => ({ ...prev, istochnik: 'words' }))
+      setK((prev) => ({ ...prev, istochnik: 'words', proverka: null }))
     }
   }
 
@@ -93,6 +113,7 @@ export default function Card() {
 
   const nedostaet = OBYAZATELNO.filter((f) => !f.done(k))
   const rayony = GORODA[k.gorod] ?? []
+  const seti = razobratVse(k.ssylki)
 
   return (
     <div className="form-page">
@@ -106,7 +127,6 @@ export default function Card() {
       </header>
 
       <div className="form-grid">
-        {/* ------------------------------------------------- предпросмотр */}
         <aside className="side">
           <div className="side-inner">
             <div className="wordmark">Так вас увидят</div>
@@ -124,8 +144,8 @@ export default function Card() {
           </div>
         </aside>
 
-        {/* ------------------------------------------------------- поля */}
         <div className="fields">
+          {/* ------------------------------------------------------ кто вы */}
           <section className="block">
             <h2>Кто вы</h2>
 
@@ -166,27 +186,62 @@ export default function Card() {
             </label>
 
             <div className="fld">
-              <span className="field-label">Соцсети · хотя бы одна</span>
-              <div className="seti">
-                {SETI.map((s) => (
-                  <label key={s.key} className="set-row">
-                    <span className="ic" aria-hidden="true">
-                      {s.short}
-                    </span>
-                    <span className="set-prefix">{s.prefix}</span>
-                    <input
-                      className="input bare"
-                      aria-label={s.name}
-                      value={k.seti[s.key] ?? ''}
-                      placeholder="имя"
-                      onChange={(e) => set('seti', { ...k.seti, [s.key]: e.target.value })}
-                    />
-                  </label>
-                ))}
+              <span className="field-label">Ссылки на профили · хотя бы одна</span>
+              <div className="paste">
+                <input
+                  className={`input${ssylkaBad ? ' bad' : ''}`}
+                  type="url"
+                  inputMode="url"
+                  value={vstavka}
+                  placeholder="Вставьте ссылку на профиль"
+                  aria-label="Ссылка на профиль"
+                  onChange={(e) => {
+                    setVstavka(e.target.value)
+                    setSsylkaBad(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      dobavitSsylku()
+                    }
+                  }}
+                />
+                <button className="btn small" disabled={vstavka.trim() === ''} onClick={dobavitSsylku}>
+                  Добавить
+                </button>
               </div>
+              {ssylkaBad && <p className="warn-txt small-txt">Это не похоже на ссылку.</p>}
+              <p className="fine">
+                Откройте свой профиль, скопируйте адрес из строки браузера и вставьте сюда.
+                Сеть определим сами.
+              </p>
+
+              {seti.length > 0 && (
+                <ul className="links">
+                  {seti.map((s) => (
+                    <li key={s.url}>
+                      <span className="ic" aria-hidden="true">
+                        {s.short}
+                      </span>
+                      <span className="link-txt">
+                        <span className="link-nm">{s.name}</span>
+                        <span className="link-h">{s.handle}</span>
+                      </span>
+                      <button
+                        className="linkbtn"
+                        aria-label={`Убрать ${s.name}`}
+                        onClick={() => set('ssylki', k.ssylki.filter((u) => u !== s.url))}
+                      >
+                        Убрать
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </section>
 
+          {/* ------------------------------------------------------- цифры */}
           <section className="block">
             <h2>Цифры</h2>
 
@@ -251,22 +306,21 @@ export default function Card() {
 
               <label className="fld">
                 <span className="field-label">Охват одного поста</span>
-                <span className="input-wrap">
-                  <input
-                    className="input"
-                    inputMode="numeric"
-                    value={razdelit(k.reach)}
-                    placeholder="12 400"
-                    onChange={(e) => {
-                      set('reach', e.target.value.replace(/\D/g, ''))
-                      set('istochnik', 'words')
-                    }}
-                  />
-                </span>
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  value={razdelit(k.reach)}
+                  placeholder="12 400"
+                  onChange={(e) => {
+                    set('reach', e.target.value.replace(/\D/g, ''))
+                    set('istochnik', 'words')
+                  }}
+                />
               </label>
             </div>
           </section>
 
+          {/* --------------------------------------------------- про работу */}
           <section className="block">
             <h2>Про работу</h2>
 
@@ -277,12 +331,11 @@ export default function Card() {
               <div className="chips">
                 {TEMATIKI.map((t) => {
                   const on = k.tematiki.includes(t)
-                  const full = !on && k.tematiki.length >= MAX_TEMATIK
                   return (
                     <button
                       key={t}
                       className={`chip${on ? ' on' : ''}`}
-                      disabled={full}
+                      disabled={!on && k.tematiki.length >= MAX_TEMATIK}
                       aria-pressed={on}
                       onClick={() => toggleTema(t)}
                     >
@@ -314,7 +367,9 @@ export default function Card() {
               </label>
 
               <label className="fld">
-                <span className="field-label">Район</span>
+                <span className="field-label">
+                  Район{k.gorod && nuzhenRayon(k.gorod) ? '' : ' · если есть'}
+                </span>
                 <select
                   className="input"
                   value={k.rayon}
@@ -370,31 +425,14 @@ export default function Card() {
             </div>
           </section>
 
-          <section className="block">
-            <h2>Как с вами связаться</h2>
-            <p className="fine">
-              Соцсети из карточки видны всегда. Телефон — только если вы сами разрешите.
-            </p>
-            <label className="switch-row">
-              <input
-                type="checkbox"
-                checked={k.showPhone}
-                onChange={(e) => set('showPhone', e.target.checked)}
-              />
-              <span className="switch" aria-hidden="true" />
-              <span>
-                Показывать телефон {k.phoneMasked} в карточке
-                <span className="fine">Без этого рекламодатель напишет через соцсети.</span>
-              </span>
-            </label>
-          </section>
-
           {tried && nedostaet.length > 0 && (
             <div className="note err" role="alert">
               <span className="dot" aria-hidden="true">
                 !
               </span>
-              <span>Осталось заполнить: {nedostaet.map((f) => f.label.toLowerCase()).join(', ')}.</span>
+              <span>
+                Осталось заполнить: {nedostaet.map((f) => f.label.toLowerCase()).join(', ')}.
+              </span>
             </div>
           )}
 
@@ -413,7 +451,6 @@ export default function Card() {
         </div>
       </div>
 
-      {/* нижняя полоса — только на телефоне */}
       <div className="bar">
         <span className="bar-txt">
           Готово {gotovo(k)} из {OBYAZATELNO.length}

@@ -4,6 +4,7 @@ import Code from './routes/Code'
 import Done from './routes/Done'
 import Invite from './routes/Invite'
 import Login from './routes/Login'
+import Moderator from './routes/Moderator'
 
 export default function App() {
   return (
@@ -14,8 +15,10 @@ export default function App() {
       <Route path="/kod" element={<Code />} />
       <Route path="/gotovo" element={<Done />} />
 
-      {/* дальше — следующий кусок работы */}
       <Route path="/kartochka" element={<Card />} />
+
+      {/* инструмент модератора — на сервере закроется ролью admin */}
+      <Route path="/moderator" element={<Moderator />} />
 
       <Route path="*" element={<Navigate to="/vhod" replace />} />
     </Routes>

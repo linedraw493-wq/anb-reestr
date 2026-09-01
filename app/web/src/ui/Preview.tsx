@@ -1,11 +1,11 @@
 import { korotko, razdelit, type Karta } from '../lib/card'
-import { SETI } from '../lib/spravochniki'
+import { razobratVse } from '../lib/seti'
 
 /** Карточка ровно в том виде, в каком её увидит рекламодатель в каталоге. */
 export function Preview({ k }: { k: Karta }) {
   const mesto = [k.gorod, k.rayon].filter(Boolean).join(', ')
   const podpis = [...k.tematiki, mesto].filter(Boolean).join(' · ')
-  const seti = SETI.filter((s) => (k.seti[s.key] ?? '').trim() !== '')
+  const seti = razobratVse(k.ssylki)
 
   return (
     <article className="preview">
@@ -19,7 +19,7 @@ export function Preview({ k }: { k: Karta }) {
         )}
         <span className="pv-txt">
           <span className="pv-nm">{k.nick || 'Ваш ник'}</span>
-          <span className="pv-mt">{podpis || 'Тематика и город'}</span>
+          <span className="pv-mt">{podpis || 'Тематика и адрес'}</span>
         </span>
       </div>
 
@@ -38,7 +38,7 @@ export function Preview({ k }: { k: Karta }) {
         <span className="pv-icons">
           {seti.length > 0 ? (
             seti.map((s) => (
-              <span key={s.key} className="ic" title={s.name}>
+              <span key={s.url} className="ic" title={`${s.name} · ${s.handle}`}>
                 {s.short}
               </span>
             ))
@@ -60,7 +60,6 @@ export function Preview({ k }: { k: Karta }) {
             ? `${razdelit(k.stavka)} ₸ за пост`
             : 'Ставка не указана'}
         {k.yazyk && ` · ${k.yazyk.toLowerCase()}`}
-        {k.showPhone && k.phoneMasked && ` · ${k.phoneMasked}`}
       </div>
     </article>
   )

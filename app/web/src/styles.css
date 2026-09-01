@@ -1120,6 +1120,326 @@ select.input[disabled] {
   margin-bottom: 18px;
 }
 
+/* ------------------------------------------------ вставка ссылки на профиль */
+
+.paste {
+  display: flex;
+  gap: 8px;
+}
+
+.paste .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.paste .btn {
+  flex: 0 0 auto;
+}
+
+.small-txt {
+  font-size: 0.8125rem;
+  margin-top: 6px;
+}
+
+.links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.links li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 9px 11px;
+}
+
+.link-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.link-nm {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.link-h {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================================
+   ИНСТРУМЕНТ МОДЕРАТОРА
+   ===================================================================== */
+
+.moder-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.moder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.moder-detail {
+  min-width: 0;
+}
+
+/* на телефоне список и карточка не помещаются рядом — показываем по одному */
+@media (max-width: 899px) {
+  .moder .moder-detail {
+    display: none;
+  }
+
+  .moder.open .moder-list {
+    display: none;
+  }
+
+  .moder.open .moder-detail {
+    display: block;
+  }
+}
+
+@media (min-width: 900px) {
+  .moder-grid {
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .moder-list {
+    position: sticky;
+    top: 28px;
+    max-height: calc(100dvh - 56px);
+    overflow-y: auto;
+  }
+
+  .back {
+    display: none;
+  }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab {
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--paper);
+  color: var(--muted);
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.tab .cnt {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  background: var(--surface);
+  border-radius: 99px;
+  padding: 1px 6px;
+}
+
+.btn.wide {
+  width: 100%;
+}
+
+.btn.danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.empty-note {
+  padding: 22px 4px;
+}
+
+.zayavki {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.zayavka {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 11px 12px;
+  cursor: pointer;
+}
+
+.zayavka.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.z-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.z-nm {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.z-mt {
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pill.neutral {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* --------------------------------------------------------- отчёт ИИ */
+
+.proverka {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 15px 17px;
+}
+
+.proverka.ok {
+  border-left-color: var(--good);
+}
+
+.proverka.bad {
+  border-left-color: var(--danger);
+}
+
+.p-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.proverka.ok .p-head {
+  color: var(--good);
+}
+
+.proverka.bad .p-head {
+  color: var(--danger);
+}
+
+.p-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.875rem;
+}
+
+.p-rows > div {
+  display: flex;
+  gap: 10px;
+}
+
+.p-rows dt {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 92px;
+  flex: 0 0 auto;
+  padding-top: 3px;
+}
+
+.p-rows dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.p-notes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.p-notes li {
+  padding-left: 15px;
+  position: relative;
+}
+
+.p-notes li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.moder-hint {
+  margin-top: 24px;
+}
+
 .spinner {
   width: 22px;
   height: 22px;
