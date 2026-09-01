@@ -18,6 +18,8 @@ export type StartResult =
   | { ok: false; reason: 'bad-phone' }
   /** заготовка из таблицы заказчика без номера — человек вписывает свой */
   | { ok: false; reason: 'need-phone' }
+  /** номер уже привязан к другой записи — склеивать нельзя, надо просто войти */
+  | { ok: false; reason: 'phone-taken' }
   | { ok: false; reason: 'too-often'; retryAfter: number }
   | { ok: false; reason: 'dead-invite' }
 

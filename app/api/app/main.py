@@ -170,7 +170,9 @@ async def vhod_start(request: Request):
                     "select id from lyudi where telefon = $1 and id <> $2", novyy, chelovek_id
                 )
                 if zanyat:
-                    return {"ok": False, "reason": "bad-phone"}
+                    # Номер уже чей-то. Молча склеивать две записи нельзя —
+                    # телефон это личность, склейка потеряет чужую карточку.
+                    return {"ok": False, "reason": "phone-taken"}
                 await conn.execute(
                     "update lyudi set telefon = $1 where id = $2", novyy, chelovek_id
                 )

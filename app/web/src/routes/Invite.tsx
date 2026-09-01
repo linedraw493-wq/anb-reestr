@@ -17,6 +17,7 @@ export default function Invite() {
   const [agreed, setAgreed] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [zanyat, setZanyat] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -61,12 +62,14 @@ export default function Invite() {
     if (!canSend) return
     setSending(true)
     setError(null)
+    setZanyat(false)
 
     const res = await api.start(editing ? { token, phone: phone! } : { token })
     setSending(false)
 
     if (!res.ok) {
       if (res.reason === 'dead-invite') setInvite({ status: 'dead' })
+      else if (res.reason === 'phone-taken') setZanyat(true)
       else if (res.reason === 'need-phone') {
         setEditing(true)
         setError('Впишите свой номер — на него придёт код.')
@@ -136,6 +139,17 @@ export default function Invite() {
         </span>
       </label>
 
+      {zanyat && (
+        <Err>
+          Этот номер уже привязан к другой карточке. Если она ваша — просто войдите по
+          номеру, приглашение для этого не нужно.
+        </Err>
+      )}
+      {zanyat && (
+        <button className="btn ghost" onClick={() => navigate('/vhod')}>
+          Войти по номеру
+        </button>
+      )}
       {error && <Err>{error}</Err>}
 
       <button className="btn" disabled={!canSend} onClick={send}>
