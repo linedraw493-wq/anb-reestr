@@ -495,6 +495,18 @@ async def sohranit_kartochku(request: Request):
                     podpischiki,
                     ohvat,
                 )
+                if stalo_inache and not nastroyki.MODERATSIYA:
+                    # без проверки новые цифры встают сразу
+                    await conn.execute(
+                        "update kartochki set podpischiki=$2, ohvat=$3, istochnik=$4"
+                        " where id=$1",
+                        kid,
+                        podpischiki,
+                        ohvat,
+                        istochnik,
+                    )
+                    return {"ok": True, "status": "published", "cifryNaProverke": False}
+
                 if stalo_inache:
                     skrin_id = await conn.fetchval(
                         "select id from skriny where kartochka_id = $1 "
@@ -520,20 +532,25 @@ async def sohranit_kartochku(request: Request):
                     return {"ok": True, "status": "published", "cifryNaProverke": True}
                 return {"ok": True, "status": "published", "cifryNaProverke": False}
 
+            # Модерация выключена — карточка идёт в каталог сразу (спека).
+            novyy = "moderation" if nastroyki.MODERATSIYA else "published"
             await conn.execute(
                 """
                 update kartochki set
                   podpischiki = $2, ohvat = $3, istochnik = $4,
-                  status = 'moderation', podana_v = now(), prichina_otkaza = null
+                  status = $5, podana_v = now(), prichina_otkaza = null,
+                  opublikovana_v = case when $5 = 'published' then now()
+                                        else opublikovana_v end
                 where id = $1
                 """,
                 kid,
                 podpischiki,
                 ohvat,
                 istochnik,
+                novyy,
             )
 
-    return {"ok": True, "status": "moderation", "cifryNaProverke": False}
+    return {"ok": True, "status": novyy, "cifryNaProverke": False}
 
 
 # ================================================================== модератор
