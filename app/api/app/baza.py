@@ -21,7 +21,14 @@ _pul: asyncpg.Pool | None = None
 async def otkryt() -> asyncpg.Pool:
     global _pul
     if _pul is None:
-        _pul = await asyncpg.create_pool(nastroyki.BAZA, min_size=1, max_size=8)
+        # search_path задаём явно: у Neon он по умолчанию не включает public,
+        # и все наши запросы без схемы падали бы с «relation does not exist».
+        _pul = await asyncpg.create_pool(
+            nastroyki.BAZA,
+            min_size=1,
+            max_size=8,
+            server_settings={"search_path": "public"},
+        )
         await nakatit(_pul)
     return _pul
 
