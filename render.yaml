@@ -1,0 +1,35 @@
+# Развёртывание на Render — бесплатный тариф, карта не нужна.
+#
+# База живёт отдельно, в Neon (тоже бесплатно и навсегда): у Render
+# бесплатный Postgres умирает через 30 дней, а наши 306 блогеров нужны
+# дольше.
+#
+# Что подставить руками в кабинете Render (Environment):
+#   DATABASE_URL           — строка подключения из Neon
+#   TELEGRAM_BOT_TOKEN     — из app/.env
+#   TELEGRAM_CODE_CHAT_ID  — из app/.env
+#   OTP_SECRET             — из app/.env, иначе все входы и коды погаснут
+#
+# Бесплатная служба засыпает через 15 минут без посетителей и просыпается
+# около минуты. Для показа годится, для 306 живых блогеров — нет.
+
+services:
+  - type: web
+    name: anb-reestr
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./app/Dockerfile
+    dockerContext: ./app
+    healthCheckPath: /api/spravochniki
+    envVars:
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CODE_CHAT_ID
+        sync: false
+      - key: OTP_SECRET
+        sync: false
