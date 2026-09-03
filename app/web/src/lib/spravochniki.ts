@@ -15,6 +15,8 @@ export const MAX_TEMATIK = 3
 export type Spravochniki = {
   tematiki: string[]
   goroda: Record<string, string[]>
+  /** те же города, разложенные по областям: список из 76 городов иначе не выбрать */
+  oblasti?: { oblast: string; goroda: string[] }[]
   yazyki: string[]
 }
 

@@ -66,9 +66,7 @@ export function skolkoZadano(f: Filtry): number {
     f.ohvat_ot,
     f.stavka_do,
     f.poisk,
-  ].filter(
-    Boolean,
-  ).length
+  ].filter(Boolean).length
 }
 
 /** Фильтры → адресная строка. Пустые не пишем, чтобы ссылка была читаемой. */
@@ -106,9 +104,16 @@ export function izAdresa(stroka: string): Filtry {
   }
 }
 
-export async function vzyatKatalog(f: Filtry): Promise<Vydacha> {
-  const res = await fetch(`/api/katalog?${vAdres(f)}`)
-  if (!res.ok) throw new Error('катал ог не ответил')
+/**
+ * Спросить каталог.
+ *
+ * `signal` обязателен по делу: пока человек крутит фильтры, ответы на старые
+ * запросы продолжают приходить — и сетка дёргается, показывая то новое, то
+ * позапрошлое. Отменённый запрос не приходит вовсе.
+ */
+export async function vzyatKatalog(f: Filtry, signal?: AbortSignal): Promise<Vydacha> {
+  const res = await fetch(`/api/katalog?${vAdres(f)}`, { signal })
+  if (!res.ok) throw new Error('каталог не ответил')
   return (await res.json()) as Vydacha
 }
 

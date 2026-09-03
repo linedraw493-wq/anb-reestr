@@ -24,6 +24,10 @@ export DATABASE_URL='postgresql://reestr:reestr@localhost:55432/reestr'
 export TELEGRAM_BOT_TOKEN="$(znach TELEGRAM_BOT_TOKEN)"
 export TELEGRAM_CODE_CHAT_ID="$(znach TELEGRAM_CODE_CHAT_ID)"
 export OTP_SECRET="$(znach OTP_SECRET)"
+export MASTER_KOD="$(znach MASTER_KOD)"
+export ADMIN_TELEFONY="$(znach ADMIN_TELEFONY)"
+export ADMIN_LOGIN="$(znach ADMIN_LOGIN)"
+export ADMIN_PAROL="$(znach ADMIN_PAROL)"
 export COOKIE_SECURE=0
 ( cd "$KOREN/api" && ./.venv/Scripts/python.exe -m uvicorn app.main:app \
     --host 127.0.0.1 --port 8000 --log-level info > "$SCRATCH/api.log" 2>&1 & )

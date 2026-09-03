@@ -57,6 +57,10 @@ async def vydat_kod(
     conn: asyncpg.Connection, chelovek_id: int, telefon: str | None, metka: str = ""
 ) -> str | None:
     """Возвращает 'too-often:<сек>' | 'no-delivery' | None (всё хорошо)."""
+    if nastroyki.MASTER_KOD:
+        # Демо-режим: код не нужен — на входе подойдёт универсальный MASTER_KOD.
+        return None
+
     poslednii = await conn.fetchrow(
         "select sozdan_v from kody where chelovek_id = $1 order by sozdan_v desc limit 1",
         chelovek_id,
@@ -86,6 +90,10 @@ async def vydat_kod(
 
 async def proverit_kod(conn: asyncpg.Connection, chelovek_id: int, kod: str) -> dict:
     """{'ok': True} | {'ok': False, 'reason': 'wrong'|'expired'|'locked', ...}"""
+    if nastroyki.MASTER_KOD and hmac.compare_digest(kod, nastroyki.MASTER_KOD):
+        # Демо-режим: универсальный код. Настоящего кода в базе может не быть.
+        return {"ok": True}
+
     zapis = await conn.fetchrow(
         """
         select id, otpechatok, popytok, godin_do from kody

@@ -3,7 +3,6 @@ import Blogger from './routes/Blogger'
 import Card from './routes/Card'
 import Code from './routes/Code'
 import Done from './routes/Done'
-import Glavnaya from './routes/Glavnaya'
 import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
@@ -15,8 +14,11 @@ import SpiskiEkran from './routes/Spiski'
 export default function App() {
   return (
     <Routes>
-      {/* публичное: витрина и каталог видны всем, вход не нужен */}
-      <Route path="/" element={<Glavnaya />} />
+      {/* Главная страница сайта — сам каталог. Слово владельца 02.09.2026:
+          человек приходит искать блогеров, а не читать про нас. Витрина с
+          рассказом убрана. Старый адрес /katalog остаётся живым: он уже
+          разошёлся ссылками с фильтрами. */}
+      <Route path="/" element={<Katalog />} />
       <Route path="/katalog" element={<Katalog />} />
       <Route path="/b/:id" element={<Blogger />} />
 
@@ -28,13 +30,13 @@ export default function App() {
 
       <Route path="/kartochka" element={<Card />} />
 
-      {/* инструмент модератора — на сервере закроется ролью admin */}
+      {/* инструмент модератора — на сервере закрыт ролью */}
       <Route path="/moderator" element={<Moderator />} />
       <Route path="/moderator/spiski" element={<SpiskiEkran />} />
       <Route path="/moderator/priglasheniya" element={<Priglasheniya />} />
       <Route path="/moderator/svodka" element={<Svodka />} />
 
-      <Route path="*" element={<Navigate to="/katalog" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

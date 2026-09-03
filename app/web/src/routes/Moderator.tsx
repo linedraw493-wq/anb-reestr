@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { moderApi, NetDostupa } from '../lib/api'
 import {
@@ -6,6 +6,7 @@ import {
   STATUS_NAZVANIE,
   type CardStatus,
   type Karta,
+  type StranicaZayavok,
   type Zayavka,
 } from '../lib/card'
 import { razobratVse } from '../lib/seti'
@@ -26,26 +27,47 @@ export default function Moderator() {
   const navigate = useNavigate()
   const spr = useSpravochniki()
   const [vse, setVse] = useState<Zayavka[] | null>(null)
+  const [scheta, setScheta] = useState<Partial<Record<CardStatus, number>>>({})
+  const [stranica, setStranica] = useState(1)
+  const [stranic, setStranic] = useState(1)
   const [vkladka, setVkladka] = useState<CardStatus>('moderation')
   const [vybran, setVybran] = useState<string | null>(null)
   const [pravka, setPravka] = useState<Karta | null>(null)
   const [otkaz, setOtkaz] = useState('')
   const [zanyat, setZanyat] = useState(false)
   const [beda, setBeda] = useState<'net-prav' | 'net-svyazi' | null>(null)
+  const pervyyRaz = useRef(true)
 
+  /* Страницами и по вкладке: раньше экран тянул все 306 карточек разом и
+     ждал секунды. Теперь сервер отдаёт одну вкладку по пятьдесят штук. */
   async function perechitat(ostavit?: string | null) {
-    let list: Zayavka[]
+    let stranicaZayavok: StranicaZayavok
     try {
-      list = await moderApi.list()
+      stranicaZayavok = await moderApi.list({ status: vkladka, stranica })
     } catch (oshibka) {
       setBeda(oshibka instanceof NetDostupa ? 'net-prav' : 'net-svyazi')
       setVse([])
       return
     }
     setBeda(null)
-    setVse(list)
+    setVse(stranicaZayavok.zayavki)
+    setScheta(stranicaZayavok.scheta ?? {})
+    setStranic(stranicaZayavok.stranic)
+    // Проверка сейчас выключена — на вкладке «на проверке» пусто всегда.
+    // Не встречаем модератора пустым экраном: открываем то, где есть работа.
+    if (
+      pervyyRaz.current &&
+      vkladka === 'moderation' &&
+      stranicaZayavok.zayavki.length === 0 &&
+      (stranicaZayavok.scheta?.published ?? 0) > 0
+    ) {
+      pervyyRaz.current = false
+      setVkladka('published')
+      return
+    }
+    pervyyRaz.current = false
     const id = ostavit !== undefined ? ostavit : vybran
-    const nashli = list.find((z) => z.karta.id === id)
+    const nashli = stranicaZayavok.zayavki.find((z) => z.karta.id === id)
     setVybran(nashli ? nashli.karta.id : null)
     setPravka(nashli ? { ...nashli.karta } : null)
   }
@@ -53,17 +75,9 @@ export default function Moderator() {
   useEffect(() => {
     void perechitat(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [vkladka, stranica])
 
-  const spisok = useMemo(
-    () => (vse ?? []).filter((z) => z.status === vkladka),
-    [vse, vkladka],
-  )
-  const scheta = useMemo(() => {
-    const c: Partial<Record<CardStatus, number>> = {}
-    for (const z of vse ?? []) c[z.status] = (c[z.status] ?? 0) + 1
-    return c
-  }, [vse])
+  const spisok = vse ?? []
 
   const tekushchaya = (vse ?? []).find((z) => z.karta.id === vybran) ?? null
 
@@ -129,6 +143,7 @@ export default function Moderator() {
                 className={`tab${vkladka === v.key ? ' on' : ''}`}
                 onClick={() => {
                   setVkladka(v.key)
+                  setStranica(1)
                   setVybran(null)
                   setPravka(null)
                 }}
@@ -188,6 +203,28 @@ export default function Moderator() {
                 )
               })}
             </ul>
+          )}
+
+          {stranic > 1 && (
+            <div className="stranicy">
+              <button
+                className="btn small ghost"
+                disabled={stranica <= 1}
+                onClick={() => setStranica((n) => n - 1)}
+              >
+                Назад
+              </button>
+              <span className="mono-str">
+                {stranica} из {stranic}
+              </span>
+              <button
+                className="btn small ghost"
+                disabled={stranica >= stranic}
+                onClick={() => setStranica((n) => n + 1)}
+              >
+                Дальше
+              </button>
+            </div>
           )}
         </div>
 
@@ -282,6 +319,27 @@ export default function Moderator() {
                       }
                     />
                   </label>
+                </div>
+
+                {/* Пометка достоверности — спека, день 5. Модератор сверил
+                    цифры со скрином сам: ставит «со скрина». Не сошлось —
+                    возвращает на «со слов», и в каталоге это видно всем. */}
+                <div className="fld">
+                  <span className="field-label">Откуда цифры</span>
+                  <div className="chips">
+                    <button
+                      className={`chip${pravka.istochnik === 'screen' ? ' on' : ''}`}
+                      onClick={() => setPravka({ ...pravka, istochnik: 'screen' })}
+                    >
+                      со скрина — проверено
+                    </button>
+                    <button
+                      className={`chip${pravka.istochnik === 'words' ? ' on' : ''}`}
+                      onClick={() => setPravka({ ...pravka, istochnik: 'words' })}
+                    >
+                      со слов
+                    </button>
+                  </div>
                 </div>
 
                 <div className="two">

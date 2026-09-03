@@ -67,6 +67,12 @@ export default function Priglasheniya() {
   const [skopirovan, setSkopirovan] = useState<number | null>(null)
   const [kod, setKod] = useState<{ kto: string; kod: string; minut: number } | null>(null)
 
+  // Ссылка для нового блогера, которого нет в таблице заказчика.
+  const [formNovoy, setFormNovoy] = useState(false)
+  const [nikNovogo, setNikNovogo] = useState('')
+  const [novaya, setNovaya] = useState<string | null>(null)
+  const [novayaSkopirovana, setNovayaSkopirovana] = useState(false)
+
   const perechitat = useCallback(async () => {
     const r = await fetch('/api/moder/priglasheniya', { credentials: 'same-origin' })
     if (r.status === 403) {
@@ -119,6 +125,36 @@ export default function Priglasheniya() {
     })
     setZanyat(false)
     await perechitat()
+  }
+
+  async function sozdatNovuyu() {
+    setZanyat(true)
+    const r = await fetch('/api/moder/novaya-ssylka', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nick: nikNovogo.trim() }),
+      credentials: 'same-origin',
+    })
+    const d = (await r.json()) as { ok: boolean; ssylka?: string }
+    setZanyat(false)
+    if (d.ok && d.ssylka) {
+      setNovaya(polnaya(d.ssylka))
+      setNovayaSkopirovana(false)
+      setFormNovoy(false)
+      setNikNovogo('')
+      await perechitat()
+    }
+  }
+
+  async function skopirovatNovuyu() {
+    if (!novaya) return
+    try {
+      await navigator.clipboard.writeText(novaya)
+      setNovayaSkopirovana(true)
+      setTimeout(() => setNovayaSkopirovana(false), 1600)
+    } catch {
+      prompt('Скопируйте ссылку:', novaya)
+    }
   }
 
   async function rezervnyyKod(s: Stroka) {
@@ -191,6 +227,58 @@ export default function Priglasheniya() {
           разошлите своими каналами — почтой, в мессенджере, как удобно.
         </p>
       </header>
+
+      <div className="novaya-blok">
+        {!formNovoy ? (
+          <button className="btn small" onClick={() => setFormNovoy(true)}>
+            Ссылка для нового блогера
+          </button>
+        ) : (
+          <div className="novaya-forma">
+            <input
+              className="input"
+              type="text"
+              autoFocus
+              placeholder="Ник блогера (можно пусто)"
+              aria-label="Ник нового блогера"
+              value={nikNovogo}
+              onChange={(e) => setNikNovogo(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void sozdatNovuyu()}
+            />
+            <button className="btn small" disabled={zanyat} onClick={() => void sozdatNovuyu()}>
+              Создать
+            </button>
+            <button
+              className="linkbtn"
+              onClick={() => {
+                setFormNovoy(false)
+                setNikNovogo('')
+              }}
+            >
+              отмена
+            </button>
+          </div>
+        )}
+        <p className="fine">
+          Для тех, кого нет в таблице заказчика. Ссылка одноразовая, номер блогер впишет
+          сам при входе.
+        </p>
+      </div>
+
+      {novaya && (
+        <div className="rezerv" role="alert">
+          <span className="v-head">Ссылка для нового блогера</span>
+          <span className="novaya-ssylka">{novaya}</span>
+          <span className="prig-knopki">
+            <button className="linkbtn" onClick={() => void skopirovatNovuyu()}>
+              {novayaSkopirovana ? 'скопировано' : 'скопировать'}
+            </button>
+            <button className="linkbtn" onClick={() => setNovaya(null)}>
+              закрыть
+            </button>
+          </span>
+        </div>
+      )}
 
       {kod && (
         <div className="rezerv" role="alert">

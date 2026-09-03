@@ -50,7 +50,8 @@ export default function Code() {
 
       if (res.ok) {
         clearFlow()
-        navigate('/gotovo', { replace: true })
+        // Новичка ведём заполнять карточку, вернувшегося — в каталог.
+        navigate(res.next === 'katalog' ? '/' : '/gotovo', { replace: true })
         return
       }
 

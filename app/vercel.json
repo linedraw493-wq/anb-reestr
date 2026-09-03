@@ -1,0 +1,31 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": "api/**" }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "same-origin"
+      },
+      "continue": true
+    },
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/assets/(.*)", "dest": "/web/assets/$1" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/web/index.html" }
+  ]
+}

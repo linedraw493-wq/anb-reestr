@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { korotko, razdelit, type Karta as KartaTip } from '../lib/card'
 import {
@@ -16,7 +16,7 @@ import { useSpravochniki } from '../lib/spravochniki'
 import { Karta } from '../ui/Karta'
 import { Shapka } from '../ui/Shapka'
 
-/** Публичный каталог: сюда приходит рекламодатель искать блогера. */
+/** Главная страница сайта: сюда приходит рекламодатель искать блогера. */
 export default function Katalog() {
   const spr = useSpravochniki()
   const [adres, setAdres] = useSearchParams()
@@ -26,14 +26,15 @@ export default function Katalog() {
   const [gruzim, setGruzim] = useState(true)
   const [beda, setBeda] = useState(false)
   const [naKarte, setNaKarte] = useState(false)
-  const [poiskPole, setPoiskPole] = useState(filtry.poisk)
-  // На телефоне фильтры прячутся в шторку: иначе до первого блогера
-  // надо пролистать весь отбор.
   const [shtorka, setShtorka] = useState(false)
 
-  /** Любая правка фильтра переписывает адрес — и ссылку можно скинуть. */
+  /**
+   * Правка фильтра переписывает адрес — ссылку с выборкой можно скинуть.
+   * `zamenit` — для полей, которые человек набирает: иначе каждая цифра
+   * оставляет свой след в истории, и «назад» приходится жать двадцать раз.
+   */
   const pravit = useCallback(
-    (chto: Partial<Filtry>) => {
+    (chto: Partial<Filtry>, zamenit = false) => {
       const novye: Filtry = { ...filtry, ...chto }
       // сменил фильтр — вернулись на первую страницу, иначе покажется пусто
       if (!('stranica' in chto)) novye.stranica = 1
@@ -44,42 +45,41 @@ export default function Katalog() {
         if (k === 'stranica' && Number(v) <= 1) continue
         if (v) p.set(k, String(v))
       }
-      setAdres(p, { replace: false })
-      setShtorka(false)
+      setAdres(p, { replace: zamenit })
     },
     [filtry, setAdres],
   )
 
+  /* ---------------------------------------------------------------- выдача */
+
   useEffect(() => {
-    let zhiv = true
+    const stop = new AbortController()
     setGruzim(true)
     setBeda(false)
-    vzyatKatalog(filtry)
-      .then((v) => zhiv && setVydacha(v))
-      .catch(() => zhiv && setBeda(true))
-      .finally(() => zhiv && setGruzim(false))
-    return () => {
-      zhiv = false
-    }
+    vzyatKatalog(filtry, stop.signal)
+      .then((v) => setVydacha(v))
+      .catch((e: unknown) => {
+        if ((e as Error)?.name === 'AbortError') return
+        setBeda(true)
+      })
+      .finally(() => {
+        if (!stop.signal.aborted) setGruzim(false)
+      })
+    // Ушли с этой выборки — прошлый запрос больше не нужен: его ответ
+    // приходил поверх нового и сетка прыгала.
+    return () => stop.abort()
   }, [filtry])
-
-  // поиск не дёргает сервер на каждую букву
-  useEffect(() => {
-    if (poiskPole === filtry.poisk) return
-    const t = setTimeout(() => pravit({ poisk: poiskPole.trim() }), 400)
-    return () => clearTimeout(t)
-  }, [poiskPole, filtry.poisk, pravit])
 
   const naGorod = useCallback((gorod: string) => pravit({ gorod }), [pravit])
   const rayony = spr.goroda[filtry.gorod] ?? []
   const zadano = skolkoZadano(filtry)
+  const pervayaZagruzka = vydacha === null && gruzim
 
   return (
     <div className="form-page katalog">
       <Shapka />
 
       <header className="form-head">
-        <div className="wordmark">Ассоциация блогеров</div>
         <h1>Каталог блогеров</h1>
         <p className="sub">
           Блогеры Казахстана в одном месте. Отберите по тематике, городу, охвату и цене —
@@ -87,8 +87,8 @@ export default function Katalog() {
         </p>
       </header>
 
-      {/* Панель управления. Фильтры — за кнопкой на любом экране:
-          в каталоге главное это карточки, а не отбор во всю страницу. */}
+      {/* Панель управления. Фильтры — за кнопкой: в каталоге главное это
+          карточки, а не отбор во всю страницу. */}
       <div className="kat-panel">
         <div className="kat-panel-ryad">
           <button
@@ -98,14 +98,7 @@ export default function Katalog() {
             Фильтры{zadano > 0 ? ` · ${zadano}` : ''}
           </button>
 
-          <input
-            className="input poisk-pole"
-            type="search"
-            value={poiskPole}
-            placeholder="Поиск по нику"
-            aria-label="Поиск по нику"
-            onChange={(e) => setPoiskPole(e.target.value)}
-          />
+          <PoiskPole znachenie={filtry.poisk} pravit={pravit} />
 
           <div className="perekl">
             <button
@@ -124,6 +117,7 @@ export default function Katalog() {
 
           <select
             className="input malen"
+            aria-label="Порядок"
             value={filtry.poryadok}
             onChange={(e) => pravit({ poryadok: e.target.value as Poryadok })}
           >
@@ -135,7 +129,7 @@ export default function Katalog() {
           </select>
 
           <span className="kat-skolko">
-            {gruzim && !vydacha ? 'Ищем…' : `${vydacha?.vsego ?? 0} найдено`}
+            {pervayaZagruzka ? 'Ищем…' : `${vydacha?.vsego ?? 0} найдено`}
           </span>
         </div>
 
@@ -202,11 +196,23 @@ export default function Katalog() {
                 onChange={(e) => pravit({ gorod: e.target.value })}
               >
                 <option value="">Любой</option>
-                {Object.keys(spr.goroda).map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
+                {/* Городов семьдесят с лишним — без разбивки по областям
+                    в этом списке не найти нужный. */}
+                {spr.oblasti
+                  ? spr.oblasti.map((o) => (
+                      <optgroup key={o.oblast} label={o.oblast}>
+                        {o.goroda.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  : Object.keys(spr.goroda).map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
               </select>
             </label>
 
@@ -246,47 +252,41 @@ export default function Katalog() {
             <div className="fld">
               <span className="field-label">Подписчиков</span>
               <div className="two">
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  aria-label="Подписчиков не меньше"
-                  value={razdelit(filtry.ot)}
-                  placeholder="от"
-                  onChange={(e) => pravit({ ot: e.target.value.replace(/\D/g, '') })}
+                <ChislovoePole
+                  imya="Подписчиков не меньше"
+                  mesto="от"
+                  znachenie={filtry.ot}
+                  postavit={(v) => pravit({ ot: v }, true)}
                 />
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  aria-label="Подписчиков не больше"
-                  value={razdelit(filtry.do)}
-                  placeholder="до"
-                  onChange={(e) => pravit({ do: e.target.value.replace(/\D/g, '') })}
+                <ChislovoePole
+                  imya="Подписчиков не больше"
+                  mesto="до"
+                  znachenie={filtry.do}
+                  postavit={(v) => pravit({ do: v }, true)}
                 />
               </div>
             </div>
 
-            <label className="fld">
+            <div className="fld">
               <span className="field-label">Охват не меньше</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={razdelit(filtry.ohvat_ot)}
-                placeholder="любой"
-                onChange={(e) => pravit({ ohvat_ot: e.target.value.replace(/\D/g, '') })}
+              <ChislovoePole
+                imya="Охват не меньше"
+                mesto="любой"
+                znachenie={filtry.ohvat_ot}
+                postavit={(v) => pravit({ ohvat_ot: v }, true)}
               />
-            </label>
+            </div>
 
-            <label className="fld">
+            <div className="fld">
               <span className="field-label">Цена не выше, ₸</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={razdelit(filtry.stavka_do)}
-                placeholder="любая"
-                onChange={(e) => pravit({ stavka_do: e.target.value.replace(/\D/g, '') })}
+              <ChislovoePole
+                imya="Цена не выше"
+                mesto="любая"
+                znachenie={filtry.stavka_do}
+                postavit={(v) => pravit({ stavka_do: v }, true)}
               />
               <span className="fine">Договорные тоже показываем — цена не названа.</span>
-            </label>
+            </div>
 
             <button className="btn" onClick={() => setShtorka(false)}>
               Показать {vydacha?.vsego ?? 0}
@@ -309,6 +309,15 @@ export default function Katalog() {
             <Karta tochki={vydacha.tochki} vybran={filtry.gorod} naGorod={naGorod} />
           )}
 
+          {/* Первая загрузка: показываем места под карточки, а не пустоту. */}
+          {pervayaZagruzka && (
+            <div className="kat-setka">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="kk skelet" aria-hidden="true" />
+              ))}
+            </div>
+          )}
+
           {vydacha && vydacha.karty.length === 0 && !gruzim && (
             <div className="pusto">
               <p className="sub">Никого не нашли под такой отбор.</p>
@@ -318,11 +327,13 @@ export default function Katalog() {
             </div>
           )}
 
-          <div className={`kat-setka${gruzim ? ' gruzim' : ''}`}>
-            {(vydacha?.karty ?? []).map((k) => (
-              <KatalozhnayaKarta key={k.id} k={k} />
-            ))}
-          </div>
+          {vydacha && (
+            <div className={`kat-setka${gruzim ? ' gruzim' : ''}`}>
+              {vydacha.karty.map((k) => (
+                <KatalozhnayaKarta key={k.id} k={k} />
+              ))}
+            </div>
+          )}
 
           {vydacha && vydacha.stranic > 1 && (
             <div className="stranicy">
@@ -351,10 +362,105 @@ export default function Katalog() {
   )
 }
 
+/* --------------------------------------------------------------- поля ввода */
+
+/**
+ * Поле, которое человек набирает.
+ *
+ * Отчего лагало: каждая цифра шла прямо в адресную строку, а адрес — это
+ * новый запрос к серверу и новая запись в истории. Наберёшь «100000» —
+ * шесть запросов и шесть шагов назад. Теперь цифры живут в самом поле, а
+ * наружу уходят, когда человек на полсекунды остановился.
+ */
+function ChislovoePole({
+  imya,
+  mesto,
+  znachenie,
+  postavit,
+}: {
+  imya: string
+  mesto: string
+  znachenie: string
+  postavit: (v: string) => void
+}) {
+  const [svoyo, setSvoyo] = useState(znachenie)
+  const posledneeOtpravlennoe = useRef(znachenie)
+
+  // Фильтр сняли снаружи (крестиком или «сбросить всё») — поле идёт следом.
+  useEffect(() => {
+    if (znachenie !== posledneeOtpravlennoe.current) {
+      posledneeOtpravlennoe.current = znachenie
+      setSvoyo(znachenie)
+    }
+  }, [znachenie])
+
+  useEffect(() => {
+    if (svoyo === posledneeOtpravlennoe.current) return
+    const t = setTimeout(() => {
+      posledneeOtpravlennoe.current = svoyo
+      postavit(svoyo)
+    }, 450)
+    return () => clearTimeout(t)
+  }, [svoyo, postavit])
+
+  return (
+    <input
+      className="input"
+      inputMode="numeric"
+      aria-label={imya}
+      placeholder={mesto}
+      value={razdelit(svoyo)}
+      onChange={(e) => setSvoyo(e.target.value.replace(/\D/g, ''))}
+    />
+  )
+}
+
+/** Поиск по нику — та же выдержка, что и у числовых полей. */
+function PoiskPole({
+  znachenie,
+  pravit,
+}: {
+  znachenie: string
+  pravit: (chto: Partial<Filtry>, zamenit?: boolean) => void
+}) {
+  const [svoyo, setSvoyo] = useState(znachenie)
+  const poslednee = useRef(znachenie)
+
+  useEffect(() => {
+    if (znachenie !== poslednee.current) {
+      poslednee.current = znachenie
+      setSvoyo(znachenie)
+    }
+  }, [znachenie])
+
+  useEffect(() => {
+    if (svoyo.trim() === poslednee.current) return
+    const t = setTimeout(() => {
+      poslednee.current = svoyo.trim()
+      pravit({ poisk: svoyo.trim() }, true)
+    }, 450)
+    return () => clearTimeout(t)
+  }, [svoyo, pravit])
+
+  return (
+    <input
+      className="input poisk-pole"
+      type="search"
+      value={svoyo}
+      placeholder="Поиск по нику"
+      aria-label="Поиск по нику"
+      onChange={(e) => setSvoyo(e.target.value)}
+    />
+  )
+}
+
+/* ----------------------------------------------------------------- карточка */
+
 /** Карточка в сетке каталога. Кликается целиком. */
 function KatalozhnayaKarta({ k }: { k: KartaTip }) {
   const mesto = [k.gorod, k.rayon].filter(Boolean).join(', ')
   const seti = razobratVse(k.ssylki)
+  const podpis = [...k.tematiki, mesto].filter(Boolean).join(' · ')
   return (
     <Link to={`/b/${k.id}`} className="kk">
       <div className="kk-top">
@@ -367,7 +473,9 @@ function KatalozhnayaKarta({ k }: { k: KartaTip }) {
         )}
         <span className="pv-txt">
           <span className="pv-nm">{k.nick}</span>
-          <span className="pv-mt">{[...k.tematiki, mesto].filter(Boolean).join(' · ')}</span>
+          {/* Заготовка из таблицы Ассоциации: человек ещё не заходил и ничего
+              о себе не указал. Честно говорим это, а не оставляем пусто. */}
+          <span className="pv-mt">{podpis || 'профиль ещё не заполнен'}</span>
         </span>
       </div>
 

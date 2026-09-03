@@ -26,11 +26,17 @@ export type StartResult =
 /** «Проверь код». Ключ — тот же, с каким начинали: ссылка или номер. */
 export type CheckInput = { code: string; token?: string; phone?: string }
 
+/**
+ * `next` — куда вести после входа. Тот, кто уже подал карточку, попадает в
+ * каталог: гнать его каждый раз «создайте карточку» неверно (слово владельца
+ * 02.09.2026). Новичок идёт заполнять.
+ */
 export type CheckResult =
-  | { ok: true; next: 'card' }
+  | { ok: true; next: 'card' | 'katalog' }
   | { ok: false; reason: 'wrong'; attemptsLeft: number }
   | { ok: false; reason: 'expired' }
   | { ok: false; reason: 'locked' }
+  | { ok: false; reason: 'too-often'; retryAfter: number }
 
 /** Как человек попал на экран кода — по приглашению или обычным входом. */
 export type Flow = {

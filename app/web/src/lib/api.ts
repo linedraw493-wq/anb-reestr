@@ -1,5 +1,13 @@
 import { fakeCardApi, fakeModerApi } from './card'
-import type { CardApi, CardStatus, ModerApi, ReadResult, ZagruzkaKartochki, Zayavka } from './card'
+import type {
+  CardApi,
+  CardStatus,
+  ModerApi,
+  ReadResult,
+  StranicaZayavok,
+  ZagruzkaKartochki,
+  Zayavka,
+} from './card'
 import { fakeApi } from './fake'
 import { USE_FAKE } from './rezhim'
 import type { AuthApi, CheckResult, InviteState, StartResult } from './types'
@@ -37,16 +45,40 @@ const liveApi: AuthApi = {
 
 export const api: AuthApi = USE_FAKE ? fakeApi : liveApi
 
+/**
+ * Вход в админку по логину и паролю — рядом с телефоном и кодом.
+ * Демо-режим: на стенде admin / admin (выключатели ADMIN_LOGIN / ADMIN_PAROL).
+ */
+export async function vhodParol(
+  login: string,
+  parol: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (USE_FAKE) return { ok: true }
+  try {
+    return await post('/api/auth/parol', { login, parol })
+  } catch {
+    return { ok: false, reason: 'net' }
+  }
+}
+
 export async function vyyti(): Promise<void> {
   if (!USE_FAKE) await post('/api/auth/exit', {})
 }
 
 export type Ya =
   | { vnutri: false }
-  | { vnutri: true; rol: 'blogger' | 'moderator' | 'admin'; imya: string | null; telefon: string }
+  | {
+      vnutri: true
+      rol: 'blogger' | 'moderator' | 'admin'
+      imya: string | null
+      telefon: string
+      /** заполнена ли карточка — шапке решать, как её называть */
+      kartochkaZapolnena: boolean
+    }
 
 export async function ktoYa(): Promise<Ya> {
-  if (USE_FAKE) return { vnutri: true, rol: 'admin', imya: 'Заглушка', telefon: '' }
+  if (USE_FAKE)
+    return { vnutri: true, rol: 'admin', imya: 'Заглушка', telefon: '', kartochkaZapolnena: true }
   try {
     return await get<Ya>('/api/me')
   } catch {
@@ -97,18 +129,19 @@ export class NetDostupa extends Error {}
 export class ServerMolchit extends Error {}
 
 const liveModerApi: ModerApi = {
-  async list() {
+  async list({ status, stranica }) {
     let otvet: Response
+    const adres = `/api/moder/zayavki?status=${status}&stranica=${stranica}`
     try {
-      otvet = await fetch('/api/moder/zayavki', { credentials: 'same-origin' })
+      otvet = await fetch(adres, { credentials: 'same-origin' })
     } catch {
       throw new ServerMolchit()
     }
     if (otvet.status === 403) throw new NetDostupa()
     if (!otvet.ok) throw new ServerMolchit()
     const dannye = await otvet.json()
-    if (!Array.isArray(dannye)) throw new ServerMolchit()
-    return dannye as Zayavka[]
+    if (!Array.isArray(dannye?.zayavki)) throw new ServerMolchit()
+    return dannye as StranicaZayavok
   },
   approve: async (id) => void (await post('/api/moder/approve', { id })),
   reject: async (id, prichina) => void (await post('/api/moder/reject', { id, prichina })),

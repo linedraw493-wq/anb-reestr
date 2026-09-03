@@ -28,6 +28,9 @@ export default function Card() {
   const [vstavka, setVstavka] = useState('')
   const [ssylkaBad, setSsylkaBad] = useState(false)
   const [otkaz, setOtkaz] = useState<string | null>(null)
+  // Карточку, уже стоящую в каталоге, блогер правит сам — спека, день 3–4.
+  // Раньше экран предлагал «напишите администратору», хотя сервер правку умел.
+  const [pravim, setPravim] = useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const shotRef = useRef<HTMLInputElement>(null)
 
@@ -102,6 +105,7 @@ export default function Card() {
     setSending(false)
     setStatus(res.status)
     setOtkaz(null)
+    setPravim(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -113,8 +117,17 @@ export default function Card() {
     )
   }
 
-  if (status === 'moderation' || status === 'published') {
-    return <Sent k={k} published={status === 'published'} />
+  if ((status === 'moderation' || status === 'published') && !pravim) {
+    return (
+      <Sent
+        k={k}
+        published={status === 'published'}
+        pravit={() => {
+          setPravim(true)
+          setTried(false)
+        }}
+      />
+    )
   }
 
   const nedostaet = OBYAZATELNO.filter((f) => !f.done(k))
@@ -128,8 +141,9 @@ export default function Card() {
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>Ваша карточка</h1>
         <p className="sub">
-          Это ваше объявление в реестре: по нему рекламодатели будут вас находить.
-          Заполните и отправьте — карточка появится в каталоге.
+          {status === 'published'
+            ? 'Правьте, что нужно, и сохраните. Ник, ссылки, тематика и ставка меняются в каталоге сразу.'
+            : 'Это ваше объявление в реестре: по нему рекламодатели будут вас находить. Заполните и отправьте — карточка появится в каталоге.'}
         </p>
       </header>
 
@@ -454,10 +468,12 @@ export default function Card() {
 
           <button className="btn" disabled={sending} onClick={send}>
             {sending
-              ? 'Отправляем…'
-              : otkaz
-                ? 'Отправить на проверку снова'
-                : 'Отправить на проверку'}
+              ? 'Сохраняем…'
+              : status === 'published'
+                ? 'Сохранить'
+                : otkaz
+                  ? 'Отправить на проверку снова'
+                  : 'Отправить на проверку'}
           </button>
           <p className="fine">
             Потом карточку можно поправить в любой момент — вы всегда войдёте по своему номеру.
@@ -476,7 +492,13 @@ export default function Card() {
           Готово {gotovo(k)} из {OBYAZATELNO.length}
         </span>
         <button className="btn small" disabled={sending} onClick={send}>
-          {sending ? 'Отправляем…' : otkaz ? 'Отправить снова' : 'Отправить'}
+          {sending
+            ? 'Сохраняем…'
+            : status === 'published'
+              ? 'Сохранить'
+              : otkaz
+                ? 'Отправить снова'
+                : 'Отправить'}
         </button>
       </div>
     </div>
@@ -484,7 +506,15 @@ export default function Card() {
 }
 
 /** Экран после отправки. */
-function Sent({ k, published }: { k: Karta; published: boolean }) {
+function Sent({
+  k,
+  published,
+  pravit,
+}: {
+  k: Karta
+  published: boolean
+  pravit: () => void
+}) {
   return (
     <div className="form-page narrow">
       <Shapka />
@@ -501,8 +531,13 @@ function Sent({ k, published }: { k: Karta; published: boolean }) {
         <div className="wordmark">Так вас увидят</div>
         <Preview k={k} />
       </div>
+      <button className="btn" onClick={pravit}>
+        Поправить карточку
+      </button>
       <p className="fine center">
-        Пока идёт проверка, карточку можно поправить — напишите администратору.
+        {published
+          ? 'Ник, ссылки, тематику и ставку меняем сразу. Новые цифры и скрин уходят на проверку — до неё в каталоге висят прежние.'
+          : 'Правку увидит модератор вместе с самой карточкой.'}
       </p>
     </div>
   )

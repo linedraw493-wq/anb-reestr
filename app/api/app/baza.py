@@ -4,6 +4,7 @@
 в таблице `migratsii`. Ничего умнее для проекта такого размера не нужно.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -16,20 +17,35 @@ log = logging.getLogger("reestr.baza")
 MIGRATSII = nastroyki.KOREN / "migrations"
 
 _pul: asyncpg.Pool | None = None
+# Открываем базу под замком: на бою сервер поднимается не один раз, а на
+# каждый первый запрос в новом окне, и два запроса могут прийти разом.
+_zamok = asyncio.Lock()
 
 
 async def otkryt() -> asyncpg.Pool:
+    """Открыть базу. Повторный вызов ничего не делает — отдаёт уже открытую."""
     global _pul
-    if _pul is None:
+    if _pul is not None:
+        return _pul
+    async with _zamok:
+        if _pul is not None:
+            return _pul
         # search_path задаём явно: у Neon он по умолчанию не включает public,
         # и все наши запросы без схемы падали бы с «relation does not exist».
-        _pul = await asyncpg.create_pool(
+        #
+        # statement_cache_size=0 — обязательно для Neon и вообще для любого
+        # посредника между нами и базой: он раздаёт одно соединение разным
+        # запросам, а заготовленный запрос живёт в соединении. Без этого
+        # сервер падает с «prepared statement already exists».
+        pul = await asyncpg.create_pool(
             nastroyki.BAZA,
             min_size=1,
-            max_size=8,
+            max_size=nastroyki.SOEDINENIY,
             server_settings={"search_path": "public"},
+            statement_cache_size=0,
         )
-        await nakatit(_pul)
+        await nakatit(pul)
+        _pul = pul
     return _pul
 
 
@@ -46,30 +62,43 @@ def pul() -> asyncpg.Pool:
     return _pul
 
 
-async def nakatit(pool: asyncpg.Pool) -> None:
-    """Накатить все .sql, которых ещё не было. Каждый — в своей транзакции."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            create table if not exists migratsii (
-              imya       text primary key,
-              nakachena  timestamptz not null default now()
-            )
-            """
-        )
-        bylo = {r["imya"] for r in await conn.fetch("select imya from migratsii")}
+# Номер замка на всю базу. Любое число, лишь бы своё и постоянное.
+ZAMOK_MIGRATSIY = 728_301
 
-    fayly = sorted(p for p in MIGRATSII.glob("*.sql"))
-    for fayl in fayly:
-        if fayl.name in bylo:
-            continue
-        log.info("накатываю миграцию %s", fayl.name)
-        sql = fayl.read_text(encoding="utf-8")
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(sql)
-                await conn.execute("insert into migratsii (imya) values ($1)", fayl.name)
-        log.info("миграция %s легла", fayl.name)
+
+async def nakatit(pool: asyncpg.Pool) -> None:
+    """Накатить все .sql, которых ещё не было. Каждый — в своей транзакции.
+
+    На бою сервер живёт в нескольких копиях сразу, и они просыпаются вместе.
+    Поэтому накатка идёт под замком самой базы: вторая копия ждёт, а не
+    пытается положить ту же миграцию второй раз.
+    """
+    async with pool.acquire() as conn:
+        await conn.execute("select pg_advisory_lock($1)", ZAMOK_MIGRATSIY)
+        try:
+            await conn.execute(
+                """
+                create table if not exists migratsii (
+                  imya       text primary key,
+                  nakachena  timestamptz not null default now()
+                )
+                """
+            )
+            bylo = {r["imya"] for r in await conn.fetch("select imya from migratsii")}
+
+            for fayl in sorted(p for p in MIGRATSII.glob("*.sql")):
+                if fayl.name in bylo:
+                    continue
+                log.info("накатываю миграцию %s", fayl.name)
+                sql = fayl.read_text(encoding="utf-8")
+                async with conn.transaction():
+                    await conn.execute(sql)
+                    await conn.execute(
+                        "insert into migratsii (imya) values ($1)", fayl.name
+                    )
+                log.info("миграция %s легла", fayl.name)
+        finally:
+            await conn.execute("select pg_advisory_unlock($1)", ZAMOK_MIGRATSIY)
 
 
 async def ustanovit_admina(telefon: str, imya: str) -> None:
@@ -83,3 +112,20 @@ async def ustanovit_admina(telefon: str, imya: str) -> None:
             telefon,
             imya,
         )
+
+
+async def zavesti_login_admina(imya: str) -> None:
+    """Кабинет за входом по логину/паролю — без телефона, один на всех.
+
+    Ищем по имени: телефона у него нет, а имя постоянное. Нет — заводим.
+    Повторный вызов ничего не делает.
+    """
+    async with pul().acquire() as conn:
+        est = await conn.fetchval(
+            "select id from lyudi where imya = $1 and telefon is null and rol = 'admin'",
+            imya,
+        )
+        if est is None:
+            await conn.execute(
+                "insert into lyudi (telefon, rol, imya) values (null, 'admin', $1)", imya
+            )

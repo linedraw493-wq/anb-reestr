@@ -67,8 +67,18 @@ export interface CardApi {
   save(karta: Karta): Promise<{ ok: true; status: CardStatus }>
 }
 
+/** Страница очереди модератора. Все 306 карточек разом не тянем. */
+export type StranicaZayavok = {
+  vsego: number
+  stranica: number
+  stranic: number
+  /** сколько всего в каждом состоянии — для счётчиков на вкладках */
+  scheta: Partial<Record<CardStatus, number>>
+  zayavki: Zayavka[]
+}
+
 export interface ModerApi {
-  list(): Promise<Zayavka[]>
+  list(otbor: { status: CardStatus; stranica: number }): Promise<StranicaZayavok>
   approve(id: string): Promise<void>
   reject(id: string, prichina: string): Promise<void>
   remove(id: string): Promise<void>
@@ -224,9 +234,18 @@ export const fakeCardApi: CardApi = {
 }
 
 export const fakeModerApi: ModerApi = {
-  async list() {
+  async list({ status }) {
     await wait(300)
-    return zayavki.map((z) => ({ ...z, karta: { ...z.karta } }))
+    const scheta: Partial<Record<CardStatus, number>> = {}
+    for (const z of zayavki) scheta[z.status] = (scheta[z.status] ?? 0) + 1
+    const svoi = zayavki.filter((z) => z.status === status)
+    return {
+      vsego: svoi.length,
+      stranica: 1,
+      stranic: 1,
+      scheta,
+      zayavki: svoi.map((z) => ({ ...z, karta: { ...z.karta } })),
+    }
   },
   async approve(id) {
     await wait(250)

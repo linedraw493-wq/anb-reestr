@@ -1,14 +1,28 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { ktoYa, vyyti, type Ya } from '../lib/api'
 
 /**
- * Полоска сверху: кто вошёл, переход в проверку карточек (если есть права)
- * и выход. Без неё модератор не мог попасть к заявкам иначе как по памяти.
+ * Полоска сверху, одна на весь сайт.
+ *
+ * Было (слово владельца 02.09.2026, «перенасыщенно»): семь ссылок в ряд —
+ * моя карточка, проверка, приглашения, сводка, списки, выход, да ещё имя со
+ * значком. Стало: слева название, справа своя карточка и одна кнопка
+ * «Админка» — всё хозяйство модератора спрятано под неё. Гость видит «Войти».
  */
+
+const ADMINKA: { put: string; imya: string; tolkoAdmin?: boolean }[] = [
+  { put: '/moderator', imya: 'Проверка карточек' },
+  { put: '/moderator/priglasheniya', imya: 'Приглашения' },
+  { put: '/moderator/spiski', imya: 'Списки', tolkoAdmin: true },
+  { put: '/moderator/svodka', imya: 'Сводка', tolkoAdmin: true },
+]
+
 export function Shapka() {
   const navigate = useNavigate()
   const [ya, setYa] = useState<Ya | null>(null)
+  const [menyu, setMenyu] = useState(false)
+  const korobka = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let zhiv = true
@@ -18,56 +32,77 @@ export function Shapka() {
     }
   }, [])
 
-  if (!ya || !ya.vnutri) return null
+  // Нажали мимо меню — закрываем. Иначе оно висит и мешает.
+  useEffect(() => {
+    if (!menyu) return
+    function mimo(e: MouseEvent) {
+      if (!korobka.current?.contains(e.target as Node)) setMenyu(false)
+    }
+    document.addEventListener('mousedown', mimo)
+    return () => document.removeEventListener('mousedown', mimo)
+  }, [menyu])
 
-  const moderator = ya.rol === 'moderator' || ya.rol === 'admin'
+  const vnutri = ya?.vnutri === true
+  const moderator = vnutri && (ya.rol === 'moderator' || ya.rol === 'admin')
 
   return (
     <div className="shapka">
-      <span className="shapka-kto">
-        {ya.imya || ya.telefon}
-        {moderator && <span className="pill neutral">{rolName(ya.rol)}</span>}
-      </span>
+      <Link to="/" className="shapka-imya">
+        Реестр блогеров
+      </Link>
 
       <span className="shapka-knopki">
-        <button className="linkbtn" onClick={() => navigate('/kartochka')}>
-          Моя карточка
-        </button>
+        {!ya && null}
+
+        {ya && !vnutri && (
+          <button className="linkbtn" onClick={() => navigate('/vhod')}>
+            Войти
+          </button>
+        )}
+
+        {vnutri && (
+          <button className="linkbtn" onClick={() => navigate('/kartochka')}>
+            {ya.kartochkaZapolnena ? 'Моя карточка' : 'Заполнить карточку'}
+          </button>
+        )}
+
         {moderator && (
-          <button className="linkbtn" onClick={() => navigate('/moderator')}>
-            Проверка карточек
+          <span className="menyu" ref={korobka}>
+            <button className="linkbtn" onClick={() => setMenyu((v) => !v)}>
+              Админка {menyu ? '▴' : '▾'}
+            </button>
+            {menyu && (
+              <span className="menyu-spisok">
+                {ADMINKA.filter((p) => !p.tolkoAdmin || ya.rol === 'admin').map((p) => (
+                  <button
+                    key={p.put}
+                    className="menyu-punkt"
+                    onClick={() => {
+                      setMenyu(false)
+                      navigate(p.put)
+                    }}
+                  >
+                    {p.imya}
+                  </button>
+                ))}
+              </span>
+            )}
+          </span>
+        )}
+
+        {vnutri && (
+          <button
+            className="linkbtn"
+            onClick={async () => {
+              await vyyti()
+              navigate('/', { replace: true })
+              location.reload()
+            }}
+          >
+            Выйти
           </button>
         )}
-        {moderator && (
-          <button className="linkbtn" onClick={() => navigate('/moderator/priglasheniya')}>
-            Приглашения
-          </button>
-        )}
-        {ya.rol === 'admin' && (
-          <button className="linkbtn" onClick={() => navigate('/moderator/svodka')}>
-            Сводка
-          </button>
-        )}
-        {ya.rol === 'admin' && (
-          <button className="linkbtn" onClick={() => navigate('/moderator/spiski')}>
-            Списки
-          </button>
-        )}
-        <button
-          className="linkbtn"
-          onClick={async () => {
-            await vyyti()
-            navigate('/vhod', { replace: true })
-            location.reload()
-          }}
-        >
-          Выйти
-        </button>
       </span>
     </div>
   )
-}
-
-function rolName(rol: string): string {
-  return rol === 'admin' ? 'админ' : 'модератор'
 }

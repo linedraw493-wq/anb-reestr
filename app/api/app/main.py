@@ -5,11 +5,14 @@
 между доменами.
 """
 
+import hmac
 import io
 import logging
 import secrets
+import time
 from datetime import timedelta
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import asyncpg
@@ -28,16 +31,68 @@ VLADELETS_TELEFON = "+77052819342"  # слово владельца 02.09.2026
 VLADELETS_IMYA = "Даня админ+"
 
 
+async def _postavit_adminov() -> None:
+    """Владелец и клиент(ы) Ассоциации — с полными правами админки.
+
+    Владелец задан в коде, доп. номера приходят из ADMIN_TELEFONY. Повторный
+    вызов ничего не ломает: это upsert по телефону.
+    """
+    await baza.ustanovit_admina(VLADELETS_TELEFON, VLADELETS_IMYA)
+    for syroy in nastroyki.ADMIN_TELEFONY.split(","):
+        nomer = vhod.normalizovat_telefon(syroy)
+        if nomer:
+            await baza.ustanovit_admina(nomer, "Админ Ассоциации")
+    if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
+        await baza.zavesti_login_admina(nastroyki.LOGIN_ADMIN_IMYA)
+
+
 @asynccontextmanager
 async def zhizn(_: FastAPI):
     await baza.otkryt()
-    await baza.ustanovit_admina(VLADELETS_TELEFON, VLADELETS_IMYA)
+    await _postavit_adminov()
+    if nastroyki.SOL == nastroyki.SOL_PO_UMOLCHANIYU:
+        # Соль подписывает коды и сессии. На бою она обязана быть своя и
+        # тайная — иначе подпись знает любой, кто видел этот файл.
+        log.warning("OTP_SECRET не задан — стоит запасная соль. Для боя задайте свою.")
+    if nastroyki.MASTER_KOD:
+        # Демо-вход: один код подходит любому. Для стенда с клиентом это и
+        # нужно; перед тем как звать блогеров — очистить MASTER_KOD.
+        log.warning(
+            "MASTER_KOD задан (%d знаков) — этот код пускает кого угодно. "
+            "Убрать перед боевым запуском.",
+            len(nastroyki.MASTER_KOD),
+        )
+    if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
+        log.warning(
+            "Вход по логину включён (логин %r) — сменить или очистить перед боем.",
+            nastroyki.ADMIN_LOGIN,
+        )
     log.info("база готова, владелец на месте")
     yield
     await baza.zakryt()
 
 
 app = FastAPI(title="Реестр блогеров", lifespan=zhizn, docs_url=None, redoc_url=None)
+
+
+@app.middleware("http")
+async def _baza_gotova(request: Request, dalshe):
+    """Убедиться, что база открыта, до того как отвечать.
+
+    На своей машине это делает подъём сервера. На бою (Vercel) сервер живёт
+    короткими вспышками, и события подъёма может не быть вовсе — тогда без
+    этой проверки первый же запрос падал бы с «база ещё не открыта».
+    Повторный вызов ничего не стоит: открытая база отдаётся как есть.
+    """
+    global _vladelec_na_meste
+    await baza.otkryt()
+    if not _vladelec_na_meste:
+        await _postavit_adminov()
+        _vladelec_na_meste = True
+    return await dalshe(request)
+
+
+_vladelec_na_meste = False
 
 
 # ===================================================================== общее
@@ -51,37 +106,96 @@ def _net_prav() -> JSONResponse:
     return JSONResponse({"ok": False, "reason": "no-access"}, status_code=403)
 
 
-async def _karta_slovarem(conn: asyncpg.Connection, kartochka: asyncpg.Record) -> dict[str, Any]:
-    """Карточка в том виде, в каком её ждут экраны."""
-    kid = kartochka["id"]
+def _nomer(znachenie: Any) -> int | None:
+    """Число из тела запроса. Мусор — None, а не падение с 500."""
+    try:
+        return int(str(znachenie).strip())
+    except (TypeError, ValueError):
+        return None
 
-    tematiki = [
-        r["nazvanie"]
-        for r in await conn.fetch(
-            """
-            select t.nazvanie from kartochka_tematiki kt
-            join tematiki t on t.id = kt.tematika_id
-            where kt.kartochka_id = $1 order by t.poryadok
-            """,
-            kid,
-        )
-    ]
-    ssylki = [
-        r["adres"]
-        for r in await conn.fetch(
-            "select adres from ssylki where kartochka_id = $1 order by id", kid
-        )
-    ]
-    skrin = await conn.fetchrow(
+
+# Сколько раз с адреса стучались во вход. Память процесса: перезапуск
+# обнуляет, и это терпимо — счётчик от перебора, а не от взлома.
+_stuk: dict[str, list[float]] = {}
+
+
+def _slishkom_chasto(request: Request) -> bool:
+    adres = request.client.host if request.client else "?"
+    teper = time.monotonic()
+    bylo = [t for t in _stuk.get(adres, []) if teper - t < 60]
+    bylo.append(teper)
+    _stuk[adres] = bylo
+    if len(_stuk) > 5000:  # чтобы словарь не рос без края
+        for kto in [k for k, v in _stuk.items() if not v or teper - v[-1] > 300]:
+            _stuk.pop(kto, None)
+    return len(bylo) > nastroyki.POPYTOK_S_ADRESA_V_MINUTU
+
+
+async def _karty_slovarem(
+    conn: asyncpg.Connection, kartochki: list[asyncpg.Record]
+) -> list[dict[str, Any]]:
+    """Пачка карточек для экранов.
+
+    Скорость, 02.09.2026: раньше на каждую карточку уходило три отдельных
+    запроса — страница каталога в 24 карточки стоила больше семидесяти, а
+    очередь модератора на 306 карточек почти тысячу. Отсюда и «лагает».
+    Теперь три запроса на всю пачку, сколько бы карточек в ней ни было.
+    """
+    if not kartochki:
+        return []
+    nomera = [k["id"] for k in kartochki]
+
+    tematiki: dict[int, list[str]] = {}
+    for r in await conn.fetch(
         """
-        select s.kartinka_id, s.otchet_ii from skriny s
-        where s.kartochka_id = $1 order by s.zagruzhen_v desc limit 1
+        select kt.kartochka_id, t.nazvanie from kartochka_tematiki kt
+        join tematiki t on t.id = kt.tematika_id
+        where kt.kartochka_id = any($1::bigint[]) order by t.poryadok
         """,
-        kid,
-    )
+        nomera,
+    ):
+        tematiki.setdefault(r["kartochka_id"], []).append(r["nazvanie"])
 
+    ssylki: dict[int, list[str]] = {}
+    for r in await conn.fetch(
+        "select kartochka_id, adres from ssylki"
+        " where kartochka_id = any($1::bigint[]) order by id",
+        nomera,
+    ):
+        ssylki.setdefault(r["kartochka_id"], []).append(r["adres"])
+
+    skriny = {
+        r["kartochka_id"]: r
+        for r in await conn.fetch(
+            "select distinct on (kartochka_id) kartochka_id, kartinka_id, otchet_ii"
+            " from skriny where kartochka_id = any($1::bigint[])"
+            " order by kartochka_id, zagruzhen_v desc",
+            nomera,
+        )
+    }
+
+    return [
+        _sobrat_kartu(
+            k, tematiki.get(k["id"], []), ssylki.get(k["id"], []), skriny.get(k["id"])
+        )
+        for k in kartochki
+    ]
+
+
+async def _karta_slovarem(conn: asyncpg.Connection, kartochka: asyncpg.Record) -> dict[str, Any]:
+    """Одна карточка. Та же сборка, что и для пачки."""
+    return (await _karty_slovarem(conn, [kartochka]))[0]
+
+
+def _sobrat_kartu(
+    kartochka: asyncpg.Record,
+    tematiki: list[str],
+    ssylki: list[str],
+    skrin: asyncpg.Record | None,
+) -> dict[str, Any]:
+    """Карточка в том виде, в каком её ждут экраны."""
     return {
-        "id": str(kid),
+        "id": str(kartochka["id"]),
         "nick": kartochka["nik"] or "",
         "photo": f"/api/kartinki/{kartochka['foto_id']}" if kartochka["foto_id"] else None,
         "ssylki": ssylki,
@@ -112,23 +226,39 @@ KARTOCHKA_SELECT = """
 
 @app.get("/api/spravochniki")
 async def spravochniki():
+    """Списки для отбора: тематики, города с районами, языки.
+
+    Городов теперь семьдесят, и плоским списком их выбирать неудобно —
+    поэтому рядом едет разбивка по областям. Сам список городов остаётся
+    прежним: экраны, которым область не нужна, не переделываются.
+    """
     async with baza.pul().acquire() as conn:
         temy = [r["nazvanie"] for r in await conn.fetch(
             "select nazvanie from tematiki where vidna order by poryadok, nazvanie")]
         goroda: dict[str, list[str]] = {}
+        oblasti: dict[str, list[str]] = {}
         for r in await conn.fetch(
             """
-            select g.nazvanie as gorod, r.nazvanie as rayon
+            select g.nazvanie as gorod, g.oblast, r.nazvanie as rayon
             from goroda g
             left join rayony r on r.gorod_id = g.id and r.vidno
             where g.vidno
-            order by g.nazvanie, r.nazvanie
+            -- три главных города вперёд, дальше области по алфавиту
+            order by (g.oblast is distinct from 'город республиканского значения'),
+                     g.oblast nulls last, g.nazvanie, r.nazvanie
             """
         ):
-            goroda.setdefault(r["gorod"], [])
+            if r["gorod"] not in goroda:
+                goroda[r["gorod"]] = []
+                oblasti.setdefault(r["oblast"] or "Прочее", []).append(r["gorod"])
             if r["rayon"]:
                 goroda[r["gorod"]].append(r["rayon"])
-    return {"tematiki": temy, "goroda": goroda, "yazyki": ["Казахский", "Русский", "Оба"]}
+    return {
+        "tematiki": temy,
+        "goroda": goroda,
+        "oblasti": [{"oblast": o, "goroda": g} for o, g in oblasti.items()],
+        "yazyki": ["Казахский", "Русский", "Оба"],
+    }
 
 
 # ======================================================================= вход
@@ -156,6 +286,8 @@ async def priglashenie(token: str):
 
 @app.post("/api/auth/start")
 async def vhod_start(request: Request):
+    if _slishkom_chasto(request):
+        return {"ok": False, "reason": "too-often", "retryAfter": 60}
     telo = await request.json()
     token = telo.get("token")
     syroy = telo.get("phone")
@@ -215,6 +347,8 @@ async def vhod_start(request: Request):
 
 @app.post("/api/auth/check")
 async def vhod_check(request: Request):
+    if _slishkom_chasto(request):
+        return {"ok": False, "reason": "too-often", "retryAfter": 60}
     telo = await request.json()
     kod = "".join(ch for ch in str(telo.get("code", "")) if ch.isdigit())
     token = telo.get("token")
@@ -253,9 +387,67 @@ async def vhod_check(request: Request):
             """,
             chelovek_id,
         )
+        # Согласие на обработку телефона. Галочка на входе стояла с самого
+        # начала, но никуда не писалась — а предъявить его надо уметь.
+        await conn.execute(
+            "insert into soglasiya (chelovek_id, versiya) values ($1, $2)",
+            chelovek_id,
+            nastroyki.VERSIYA_SOGLASIYA,
+        )
+        # Куда вести после входа. Человек, который уже заполнил карточку,
+        # не должен каждый раз попадать на «создайте карточку» — ему в
+        # каталог. Слово владельца 02.09.2026.
+        # Заготовка из таблицы заказчика — это ещё не заполненная карточка:
+        # там один ник. Признак «человек её подал» — статус, а не ник.
+        zapolnena = await conn.fetchval(
+            "select status <> 'draft' from kartochki where chelovek_id = $1",
+            chelovek_id,
+        )
+        rol = await conn.fetchval("select rol from lyudi where id = $1", chelovek_id)
         znachenie = await vhod.otkryt_sessiyu(conn, chelovek_id)
 
-    otvet = JSONResponse({"ok": True, "next": "card"})
+    kuda = "katalog" if (zapolnena or rol in ("moderator", "admin")) else "card"
+    otvet = JSONResponse({"ok": True, "next": kuda})
+    vhod.postavit_cookie(otvet, znachenie)
+    return otvet
+
+
+@app.post("/api/auth/parol")
+async def vhod_parol(request: Request):
+    """Вход в админку по логину и паролю — рядом с телефоном и кодом.
+
+    Демо-режим: логин и пароль в ADMIN_LOGIN / ADMIN_PAROL (на стенде
+    admin/admin). За ними стоит один общий admin-кабинет без телефона.
+    Слово владельца 03.09.2026. Сменить или очистить перед боем.
+    """
+    if _slishkom_chasto(request):
+        return {"ok": False, "reason": "too-often", "retryAfter": 60}
+    if not (nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL):
+        return {"ok": False, "reason": "off"}
+
+    telo = await request.json()
+    login = str(telo.get("login", ""))
+    parol = str(telo.get("parol", ""))
+    podoshlo = hmac.compare_digest(login, nastroyki.ADMIN_LOGIN) and hmac.compare_digest(
+        parol, nastroyki.ADMIN_PAROL
+    )
+    if not podoshlo:
+        return {"ok": False, "reason": "bad-creds"}
+
+    async with baza.pul().acquire() as conn:
+        chelovek_id = await conn.fetchval(
+            "select id from lyudi where imya = $1 and telefon is null and rol = 'admin'"
+            " order by id limit 1",
+            nastroyki.LOGIN_ADMIN_IMYA,
+        )
+        if chelovek_id is None:  # на бою lifespan мог не сработать — заводим тут
+            chelovek_id = await conn.fetchval(
+                "insert into lyudi (telefon, rol, imya) values (null, 'admin', $1) returning id",
+                nastroyki.LOGIN_ADMIN_IMYA,
+            )
+        znachenie = await vhod.otkryt_sessiyu(conn, chelovek_id)
+
+    otvet = JSONResponse({"ok": True, "next": "katalog"})
     vhod.postavit_cookie(otvet, znachenie)
     return otvet
 
@@ -275,20 +467,39 @@ async def kto_ya(request: Request):
     chelovek = await _tekushchiy(request)
     if chelovek is None:
         return {"vnutri": False}
+    async with baza.pul().acquire() as conn:
+        status = await conn.fetchval(
+            "select status from kartochki where chelovek_id = $1", chelovek["id"]
+        )
     return {
         "vnutri": True,
         "rol": chelovek["rol"],
         "imya": chelovek["imya"],
         "telefon": vhod.maska(chelovek["telefon"]),
+        # Шапке нужно знать, звать «моя карточка» или «заполнить карточку».
+        "kartochkaZapolnena": status is not None and status != "draft",
     }
 
 
 # =================================================================== картинки
 
 
-def _uzhat(bayty: bytes) -> tuple[bytes, str]:
-    """Скрин с телефона — это мегабайты. В базу кладём ужатое."""
-    kartinka = Image.open(io.BytesIO(bayty))
+def _uzhat(bayty: bytes) -> tuple[bytes, str] | None:
+    """Скрин с телефона — это мегабайты. В базу кладём ужатое.
+
+    Возвращает None, если это вообще не картинка или картинка-ловушка
+    (маленький файл, разворачивающийся в гигабайты). Раньше такой файл
+    ронял запрос с ошибкой 500.
+    """
+    try:
+        kartinka = Image.open(io.BytesIO(bayty))
+        kartinka.verify()  # битый файл ловим до распаковки
+        kartinka = Image.open(io.BytesIO(bayty))
+    except Exception:
+        return None
+    shirina, vysota = kartinka.size
+    if shirina * vysota > nastroyki.KARTINKA_MAX_TOCHEK:
+        return None
     if kartinka.mode not in ("RGB", "L"):
         kartinka = kartinka.convert("RGB")
     kartinka.thumbnail(
@@ -300,8 +511,11 @@ def _uzhat(bayty: bytes) -> tuple[bytes, str]:
     return vyhod.getvalue(), "image/jpeg"
 
 
-async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -> int:
-    szhato, tip = _uzhat(bayty)
+async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -> int | None:
+    uzhato = _uzhat(bayty)
+    if uzhato is None:
+        return None
+    szhato, tip = uzhato
     return await conn.fetchval(
         "insert into kartinki (vid, tip, bayty, razmer) values ($1,$2,$3,$4) returning id",
         vid,
@@ -312,17 +526,53 @@ async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -
 
 
 @app.get("/api/kartinki/{kartinka_id}")
-async def otdat_kartinku(kartinka_id: int):
+async def otdat_kartinku(request: Request, kartinka_id: int):
+    """Картинка по номеру.
+
+    Дыра, закрытая 02.09.2026: раньше отдавали любую картинку любому — а
+    номера идут подряд, и перебором доставались чужие скрины статистики.
+    Теперь наружу видно только фото карточки, стоящей в каталоге. Скрин
+    статистики — личное: его видят сам блогер и модератор, больше никто.
+    """
     async with baza.pul().acquire() as conn:
         zapis = await conn.fetchrow(
-            "select tip, bayty from kartinki where id = $1", kartinka_id
+            "select tip, bayty, vid from kartinki where id = $1", kartinka_id
         )
-    if zapis is None:
-        return JSONResponse({"ok": False}, status_code=404)
+        if zapis is None:
+            return JSONResponse({"ok": False}, status_code=404)
+
+        publichnaya = zapis["vid"] == "foto" and bool(
+            await conn.fetchval(
+                "select 1 from kartochki k join lyudi l on l.id = k.chelovek_id"
+                " where k.foto_id = $1 and k.status = 'published' and l.udalen_v is null",
+                kartinka_id,
+            )
+        )
+        if not publichnaya:
+            chelovek = await _tekushchiy(request)
+            if chelovek is None:
+                return _net_prav()
+            if chelovek["rol"] not in ("moderator", "admin"):
+                svoya = await conn.fetchval(
+                    "select 1 from kartochki k"
+                    " left join skriny s on s.kartochka_id = k.id"
+                    " where k.chelovek_id = $1 and ($2 in (k.foto_id, s.kartinka_id))",
+                    chelovek["id"],
+                    kartinka_id,
+                )
+                if not svoya:
+                    return _net_prav()
+    # Личную картинку нельзя класть в общий кэш: её подхватит чужой браузер
+    # или посредник. Публичное фото кэшируем надолго — оно не меняется.
+    kesh = (
+        "public, max-age=31536000, immutable"
+        if publichnaya
+        else "private, no-store"
+    )
     return Response(
         content=zapis["bayty"],
         media_type=zapis["tip"],
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": kesh},
     )
 
 
@@ -375,6 +625,8 @@ async def zagruzit_foto(request: Request, file: UploadFile = File(...)):
             "select id from kartochki where chelovek_id = $1", chelovek["id"]
         )
         kartinka_id = await _polozhit_kartinku(conn, bayty, "foto")
+        if kartinka_id is None:
+            return {"ok": False, "reason": "not-image"}
         await conn.execute("update kartochki set foto_id = $1 where id = $2", kartinka_id, kid)
     return {"ok": True, "url": f"/api/kartinki/{kartinka_id}"}
 
@@ -394,6 +646,8 @@ async def zagruzit_skrin(request: Request, file: UploadFile = File(...)):
             "select id from kartochki where chelovek_id = $1", chelovek["id"]
         )
         kartinka_id = await _polozhit_kartinku(conn, bayty, "skrin")
+        if kartinka_id is None:
+            return {"ok": False, "reason": "not-image"}
         await conn.execute(
             "insert into skriny (kartochka_id, kartinka_id) values ($1, $2)", kid, kartinka_id
         )
@@ -564,40 +818,88 @@ async def _modertor(request: Request) -> asyncpg.Record | None:
 
 
 @app.get("/api/moder/zayavki")
-async def zayavki(request: Request):
+async def zayavki(
+    request: Request,
+    status: str | None = None,
+    poisk: str | None = None,
+    stranica: int = 1,
+    na_stranice: int = 50,
+):
+    """Очередь модератора — страницами и с отбором по вкладке.
+
+    Скорость, 02.09.2026: раньше экран тянул все 306 карточек разом и на
+    каждую ходил в базу отдельно — почти тысяча запросов на один заход.
+    Теперь страница нужной вкладки и одна пачка запросов на неё.
+    """
     if await _modertor(request) is None:
         return _net_prav()
 
+    na_stranice = max(1, min(na_stranice, 200))
+    smeshchenie = max(0, (max(1, stranica) - 1) * na_stranice)
+
+    usloviya, znacheniya = ["true"], []
+    if status in ("draft", "moderation", "published", "rejected"):
+        znacheniya.append(status)
+        usloviya.append(f"k.status = ${len(znacheniya)}")
+    if poisk:
+        znacheniya.append("%" + poisk.strip() + "%")
+        usloviya.append(f"k.nik ilike ${len(znacheniya)}")
+    gde = " and ".join(usloviya)
+
     async with baza.pul().acquire() as conn:
-        stroki = await conn.fetch(KARTOCHKA_SELECT + " order by k.podana_v desc nulls last, k.id desc")
-        itog = []
-        for kartochka in stroki:
-            karta = await _karta_slovarem(conn, kartochka)
-            pravka = await conn.fetchrow(
-                """
-                select podpischiki, ohvat, istochnik, podana_v from pravki_cifr
-                where kartochka_id = $1 and status = 'moderation'
-                """,
-                kartochka["id"],
+        scheta = {
+            r["status"]: r["skolko"]
+            for r in await conn.fetch(
+                "select status, count(*) as skolko from kartochki group by status"
             )
-            itog.append(
-                {
-                    "karta": karta,
-                    "status": kartochka["status"],
-                    "podana": _kogda(kartochka["podana_v"] or kartochka["sozdana_v"]),
-                    "prichina": kartochka["prichina_otkaza"],
-                    "pravkaCifr": (
-                        {
-                            "podpischiki": str(pravka["podpischiki"] or ""),
-                            "ohvat": str(pravka["ohvat"] or ""),
-                            "istochnik": pravka["istochnik"],
-                        }
-                        if pravka
-                        else None
-                    ),
-                }
+        }
+        vsego = await conn.fetchval(
+            f"select count(*) from kartochki k where {gde}", *znacheniya
+        )
+        stroki = await conn.fetch(
+            KARTOCHKA_SELECT
+            + f" where {gde}"
+            + " order by k.podana_v desc nulls last, k.id desc"
+            + f" limit {na_stranice} offset {smeshchenie}",
+            *znacheniya,
+        )
+        karty = await _karty_slovarem(conn, stroki)
+        pravki = {
+            r["kartochka_id"]: r
+            for r in await conn.fetch(
+                "select kartochka_id, podpischiki, ohvat, istochnik from pravki_cifr"
+                " where status = 'moderation' and kartochka_id = any($1::bigint[])",
+                [k["id"] for k in stroki],
             )
-    return itog
+        }
+
+    itog = []
+    for kartochka, karta in zip(stroki, karty):
+        pravka = pravki.get(kartochka["id"])
+        itog.append(
+            {
+                "karta": karta,
+                "status": kartochka["status"],
+                "podana": _kogda(kartochka["podana_v"] or kartochka["sozdana_v"]),
+                "prichina": kartochka["prichina_otkaza"],
+                "pravkaCifr": (
+                    {
+                        "podpischiki": str(pravka["podpischiki"] or ""),
+                        "ohvat": str(pravka["ohvat"] or ""),
+                        "istochnik": pravka["istochnik"],
+                    }
+                    if pravka
+                    else None
+                ),
+            }
+        )
+    return {
+        "vsego": vsego,
+        "stranica": max(1, stranica),
+        "stranic": max(1, -(-vsego // na_stranice)),
+        "scheta": scheta,
+        "zayavki": itog,
+    }
 
 
 def _kogda(kogda) -> str:
@@ -609,7 +911,9 @@ async def odobrit(request: Request):
     kto = await _modertor(request)
     if kto is None:
         return _net_prav()
-    kid = int((await request.json()).get("id"))
+    kid = _nomer((await request.json()).get("id"))
+    if kid is None:
+        return {"ok": False, "reason": "bad-id"}
 
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
@@ -654,7 +958,9 @@ async def otklonit(request: Request):
     if kto is None:
         return _net_prav()
     telo = await request.json()
-    kid, prichina = int(telo.get("id")), (telo.get("prichina") or "").strip()
+    kid, prichina = _nomer(telo.get("id")), (telo.get("prichina") or "").strip()
+    if kid is None:
+        return {"ok": False, "reason": "bad-id"}
 
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
@@ -685,10 +991,16 @@ async def otklonit(request: Request):
 
 @app.post("/api/moder/remove")
 async def udalit(request: Request):
-    kto = await _modertor(request)
-    if kto is None:
+    """Снести человека вместе с карточкой. Необратимо — потому только админу.
+
+    Модератору хватает «скрыть»: карточка уходит из каталога, данные целы.
+    """
+    kto = await _tekushchiy(request)
+    if kto is None or kto["rol"] != "admin":
         return _net_prav()
-    kid = int((await request.json()).get("id"))
+    kid = _nomer((await request.json()).get("id"))
+    if kid is None:
+        return {"ok": False, "reason": "bad-id"}
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
             await conn.execute(
@@ -711,7 +1023,9 @@ async def popravit(request: Request):
     if kto is None:
         return _net_prav()
     telo = await request.json()
-    kid = int(telo.get("id"))
+    kid = _nomer(telo.get("id"))
+    if kid is None:
+        return {"ok": False, "reason": "bad-id"}
 
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
@@ -727,10 +1041,17 @@ async def popravit(request: Request):
                 if gorod_id
                 else None
             )
+            # Пометка достоверности — спека, день 5: модератор сверил цифры
+            # со скрином и ставит «со скрина» либо возвращает на «со слов».
+            istochnik = telo.get("istochnik")
+            if istochnik not in ("screen", "words"):
+                istochnik = None
+
             await conn.execute(
                 """
                 update kartochki set nik=$2, podpischiki=$3, ohvat=$4, gorod_id=$5,
-                  rayon_id=$6, yazyk=$7, stavka=$8, dogovornaya=$9, obnovlena_v=now()
+                  rayon_id=$6, yazyk=$7, stavka=$8, dogovornaya=$9,
+                  istochnik=coalesce($10, istochnik), obnovlena_v=now()
                 where id=$1
                 """,
                 kid,
@@ -742,6 +1063,7 @@ async def popravit(request: Request):
                 telo.get("yazyk") or None,
                 _chislo(telo.get("stavka")),
                 bool(telo.get("dogovornaya")),
+                istochnik,
             )
             await conn.execute("delete from kartochka_tematiki where kartochka_id=$1", kid)
             for nazvanie in (telo.get("tematiki") or [])[: nastroyki.MAX_TEMATIK]:
@@ -838,7 +1160,7 @@ async def priglasheniya_spisok(request: Request, poisk: str | None = None):
 
     async with baza.pul().acquire() as conn:
         stroki = await conn.fetch(
-            "select l.id as chelovek_id, l.telefon, k.nik, k.status,"
+            "select l.id as chelovek_id, l.telefon, l.poslednii_vhod, k.nik, k.status,"
             " p.token, p.godno_do, p.otkryto_v, p.ispolzovano_v"
             " from lyudi l"
             " left join kartochki k on k.chelovek_id = l.id"
@@ -851,7 +1173,10 @@ async def priglasheniya_spisok(request: Request, poisk: str | None = None):
         )
 
     def sostoyanie(r) -> str:
-        if r["status"] in ("published", "moderation", "rejected"):
+        # Признак «дошёл» — вход человека, а не состояние карточки: заготовки
+        # из таблицы заказчика тоже стоят в каталоге, но их владельцы сюда
+        # ещё ни разу не заходили. Поправлено 02.09.2026.
+        if r["poslednii_vhod"] is not None:
             return "zaregistrirovalsya"
         if r["token"] is None:
             return "net-ssylki"
@@ -883,7 +1208,9 @@ async def vypustit_priglashenie(request: Request):
     kto = await _modertor(request)
     if kto is None:
         return _net_prav()
-    chelovek_id = int((await request.json()).get("chelovekId"))
+    chelovek_id = _nomer((await request.json()).get("chelovekId"))
+    if chelovek_id is None:
+        return {"ok": False, "reason": "bad-id"}
 
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
@@ -901,6 +1228,37 @@ async def vypustit_priglashenie(request: Request):
     return {"ok": True, "ssylka": "/i/" + token}
 
 
+@app.post("/api/moder/novaya-ssylka")
+async def novaya_ssylka(request: Request):
+    """Пригласительная ссылка для блогера, которого нет в таблице заказчика.
+
+    Заводит болванку без телефона — номер человек впишет сам, открыв ссылку
+    (экран приглашения это умеет). Ник необязателен: если админ его знает,
+    на экране «Это вы?» будет понятнее.
+    """
+    kto = await _modertor(request)
+    if kto is None:
+        return _net_prav()
+    nik = ((await request.json()).get("nick") or "").strip()
+
+    async with baza.pul().acquire() as conn:
+        async with conn.transaction():
+            chelovek_id = await conn.fetchval(
+                "insert into lyudi (telefon, rol, imya) values (null, 'blogger', null)"
+                " returning id"
+            )
+            await conn.execute(
+                "insert into kartochki (chelovek_id, nik) values ($1, $2)", chelovek_id, nik
+            )
+            token = await vhod.novoe_priglashenie(conn, chelovek_id, kto["id"])
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kto_id, chto, prichina)"
+                " values ($1,'zavel','ссылка для нового блогера')",
+                kto["id"],
+            )
+    return {"ok": True, "ssylka": "/i/" + token}
+
+
 @app.post("/api/moder/kod")
 async def vydat_rezervnyy_kod(request: Request):
     """Резервный код — спека, день 5.
@@ -912,7 +1270,9 @@ async def vydat_rezervnyy_kod(request: Request):
     kto = await _modertor(request)
     if kto is None:
         return _net_prav()
-    chelovek_id = int((await request.json()).get("chelovekId"))
+    chelovek_id = _nomer((await request.json()).get("chelovekId"))
+    if chelovek_id is None:
+        return {"ok": False, "reason": "bad-id"}
 
     kod = "%06d" % secrets.randbelow(1_000_000)
     async with baza.pul().acquire() as conn:
@@ -950,7 +1310,9 @@ async def skryt_kartochku(request: Request):
     if kto is None:
         return _net_prav()
     telo = await request.json()
-    kid = int(telo.get("id"))
+    kid = _nomer(telo.get("id"))
+    if kid is None:
+        return {"ok": False, "reason": "bad-id"}
     pryachem = bool(telo.get("skryt", True))
     novyy = "draft" if pryachem else "published"
 
@@ -992,8 +1354,10 @@ async def svodka(request: Request):
               (select count(*) from priglasheniya where otkryto_v is not null) as otkryli,
               (select count(*) from lyudi where rol='blogger'
                  and poslednii_vhod is not null)                               as voshli,
+              -- «заполнил» — это когда человек сам подал карточку. Цифры,
+              -- перенесённые из таблицы заказчика, сюда не считаются.
               (select count(*) from kartochki k join lyudi l on l.id=k.chelovek_id
-                 where l.rol='blogger' and k.podpischiki is not null)          as zapolnili,
+                 where l.rol='blogger' and k.podana_v is not null)             as zapolnili,
               (select count(*) from kartochki where status='published'
                  and opublikovana_v > now() - interval '7 days')               as za_nedelyu,
               (select coalesce(sum(prosmotry),0) from kartochki)               as prosmotry
@@ -1157,50 +1521,6 @@ async def spisok_pravka(request: Request):
 # ==================================================================== каталог
 
 
-@app.get("/api/glavnaya")
-async def glavnaya():
-    """Цифры и подборки для витрины. Публично, вход не нужен."""
-    async with baza.pul().acquire() as conn:
-        gde = "k.status = 'published' and l.udalen_v is null"
-        osnova = " from kartochki k join lyudi l on l.id = k.chelovek_id where " + gde
-
-        vsego = await conn.fetchval("select count(*)" + osnova)
-        gorodov = await conn.fetchval(
-            "select count(distinct k.gorod_id)" + osnova + " and k.gorod_id is not null"
-        )
-        ohvat = await conn.fetchval("select coalesce(sum(k.ohvat), 0)" + osnova)
-
-        temy = await conn.fetch(
-            "select t.nazvanie, count(*) as skolko"
-            " from kartochka_tematiki kt"
-            " join tematiki t on t.id = kt.tematika_id"
-            " join kartochki k on k.id = kt.kartochka_id"
-            " join lyudi l on l.id = k.chelovek_id"
-            " where " + gde + " and t.vidna"
-            " group by t.nazvanie order by 2 desc, 1 limit 8"
-        )
-        goroda = await conn.fetch(
-            "select g.nazvanie, count(*) as skolko"
-            " from kartochki k join goroda g on g.id = k.gorod_id"
-            " join lyudi l on l.id = k.chelovek_id"
-            " where " + gde + " group by g.nazvanie order by 2 desc, 1 limit 6"
-        )
-        luchshie = await conn.fetch(
-            KARTOCHKA_SELECT + " join lyudi l on l.id = k.chelovek_id where " + gde
-            + " order by k.ohvat desc nulls last limit 3"
-        )
-        vitrina = [await _karta_slovarem(conn, s) for s in luchshie]
-
-    return {
-        "vsego": vsego,
-        "gorodov": gorodov,
-        "ohvat": int(ohvat or 0),
-        "tematiki": [{"nazvanie": r["nazvanie"], "skolko": r["skolko"]} for r in temy],
-        "goroda": [{"nazvanie": r["nazvanie"], "skolko": r["skolko"]} for r in goroda],
-        "vitrina": vitrina,
-    }
-
-
 @app.get("/api/katalog")
 async def katalog(
     tematika: str | None = None,
@@ -1274,7 +1594,7 @@ async def katalog(
             f"{osnova} order by {sortirovka}, k.id desc limit {na_stranice} offset {smeshchenie}",
             *znacheniya,
         )
-        karty = [await _karta_slovarem(conn, s) for s in stroki]
+        karty = await _karty_slovarem(conn, stroki)
 
         # Точки для карты считаем по тем же условиям, но без страниц:
         # человек должен видеть, где живёт вся его выборка, а не её кусок.
@@ -1328,14 +1648,38 @@ async def odna_kartochka(kartochka_id: int):
 # ============================================================ отдача страниц
 
 
+def _vnutri_statiki(put: str) -> Path | None:
+    """Путь внутри папки собранных страниц — или None, если это не он.
+
+    Проверяем именно развёрнутый путь: `..`, ссылка на другую папку и
+    windows-хитрости (`C:\\`, обратный слэш) отсекаются здесь.
+    """
+    if not put or "\\" in put or ":" in put:
+        return None
+    koren = nastroyki.STATIKA.resolve()
+    try:
+        fayl = (koren / put).resolve()
+    except OSError:
+        return None
+    if koren not in fayl.parents:
+        return None
+    return fayl if fayl.is_file() else None
+
+
 @app.get("/{put:path}")
 async def stranicy(put: str):
-    """Одна служба: всё, что не /api, отдаём как собранный сайт."""
+    """Одна служба: всё, что не /api, отдаём как собранный сайт.
+
+    Дыра, закрытая 02.09.2026: адрес вида `/../../.env` уводил на любой файл
+    диска — сервер отдавал наружу настройки с токеном бота. Теперь путь
+    разворачивается до настоящего и проверяется: он обязан лежать внутри
+    папки собранных страниц, иначе не отдаём ничего.
+    """
     if put.startswith("api/"):
         return JSONResponse({"ok": False, "reason": "not-found"}, status_code=404)
 
-    fayl = nastroyki.STATIKA / put
-    if put and fayl.is_file():
+    fayl = _vnutri_statiki(put)
+    if fayl is not None:
         return FileResponse(fayl)
 
     index = nastroyki.STATIKA / "index.html"
