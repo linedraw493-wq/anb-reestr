@@ -204,5 +204,5 @@ Neon (бесплатные тарифы, Railway не понадобился). �
 ## Карты
 
 Решения по раундам — `voprosy-i-dyry.md` · сверка со спекой —
-`sverka-so-spekoy.md` · устройство и выключатели — `app/README.md` · дверь
-проекта — `CLAUDE.md`.
+`sverka-so-spekoy.md` · истории для тестирования — `test-scenarii.md` ·
+устройство и выключатели — `app/README.md` · дверь проекта — `CLAUDE.md`.
