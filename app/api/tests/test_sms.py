@@ -59,10 +59,10 @@ async def test_sms_uhodit_na_nomer_bez_plyusa(monkeypatch):
     zapisi: list = []
     _podmenit_post(monkeypatch, {"code": 0, "data": {}, "message": ""}, zapisi)
 
-    assert await sms.poslat_kod("123456", "+7 705 281 93 42") is True
+    assert await sms.poslat_kod("123456", "+7 701 000 00 00") is True
 
     ushlo = zapisi[0]["data"]
-    assert ushlo["recipient"] == "77052819342"  # Mobizon ждёт цифры без плюса
+    assert ushlo["recipient"] == "77010000000"  # Mobizon ждёт цифры без плюса
     assert "123456" in ushlo["text"]
     # Своей подписи нет — не подставляем: провайдер отобьёт незарегистрированную
     assert "from" not in ushlo
@@ -74,7 +74,7 @@ async def test_svoya_podpis_podstavlyaetsya(monkeypatch):
     zapisi: list = []
     _podmenit_post(monkeypatch, {"code": 0}, zapisi)
 
-    await sms.poslat_kod("123456", "+77052819342")
+    await sms.poslat_kod("123456", "+77010000000")
     assert zapisi[0]["data"]["from"] == "ANB"
 
 
@@ -82,7 +82,7 @@ async def test_otkaz_provaydera_eto_ne_otpravili(monkeypatch):
     """Beeline с общей подписи — как раз этот случай."""
     monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "klyuch-dlya-proverki")
     _podmenit_post(monkeypatch, {"code": 1, "message": "Not enough funds"}, [])
-    assert await sms.poslat_kod("123456", "+77052819342") is False
+    assert await sms.poslat_kod("123456", "+77010000000") is False
 
 
 async def test_upavshaya_set_ne_ronyaet_server(monkeypatch):
@@ -92,7 +92,7 @@ async def test_upavshaya_set_ne_ronyaet_server(monkeypatch):
         raise httpx.ConnectError("сети нет")
 
     monkeypatch.setattr(httpx.AsyncClient, "post", post)
-    assert await sms.poslat_kod("123456", "+77052819342") is False
+    assert await sms.poslat_kod("123456", "+77010000000") is False
 
 
 async def test_krivoy_nomer_ne_otpravlyaem(monkeypatch):

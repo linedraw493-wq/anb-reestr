@@ -76,6 +76,9 @@ export default function Svodka() {
     )
   }
 
+  // Меньше двадцати сообщений — это уже завтра. Считаем по дорогому тарифу.
+  const malo = typeof d.smsOstatok === 'number' && d.smsOstatok < 20 * 20
+
   return (
     <div className="form-page">
       <Shapka />
@@ -103,7 +106,9 @@ export default function Svodka() {
       {/* Коды входа — самое хрупкое место всей цепочки: кончились деньги
           у оператора, и регистрация встаёт молча. Пусть это будет видно
           раньше, чем блогеры начнут жаловаться. */}
-      <section className={`block kanal-blok${d.kanalKodov === 'telegram' ? ' trevoga' : ''}`}>
+      <section
+        className={`block kanal-blok${d.kanalKodov === 'telegram' || malo ? ' trevoga' : ''}`}
+      >
         <h2>Коды входа</h2>
         {d.kanalKodov === 'sms' ? (
           <p className="sub">
@@ -112,9 +117,14 @@ export default function Svodka() {
               <>
                 {' '}
                 На счету у оператора <b>{Math.round(d.smsOstatok)} ₸</b> — это примерно{' '}
-                {Math.floor(d.smsOstatok / 17)} сообщений. Кончатся — коды перестанут приходить.
+                <b>{Math.floor(d.smsOstatok / 17)} сообщений</b>.
+                {malo
+                  ? ' Это мало: пополните счёт, иначе коды перестанут приходить, а снаружи это выглядит как поломка сайта.'
+                  : ' Кончатся — коды перестанут приходить.'}
               </>
-            )}
+            )}{' '}
+            На номера Beeline (705, 771, 776, 777) код пока не доходит — таким людям выдавайте
+            резервный код на экране «Приглашения».
           </p>
         ) : (
           <p className="sub">

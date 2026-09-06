@@ -28,17 +28,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("reestr")
 
-VLADELETS_TELEFON = "+77052819342"  # слово владельца 02.09.2026
-VLADELETS_IMYA = "Даня админ+"
-
-
 async def _postavit_adminov() -> None:
     """Владелец и клиент(ы) Ассоциации — с полными правами админки.
 
-    Владелец задан в коде, доп. номера приходят из ADMIN_TELEFONY. Повторный
+    Оба берутся из настроек: VLADELETS_TELEFON и ADMIN_TELEFONY. В коде
+    номеров нет — репозиторий открытый, а это личные данные. Повторный
     вызов ничего не ломает: это upsert по телефону.
     """
-    await baza.ustanovit_admina(VLADELETS_TELEFON, VLADELETS_IMYA)
+    vladelec = vhod.normalizovat_telefon(nastroyki.VLADELETS_TELEFON)
+    if vladelec:
+        await baza.ustanovit_admina(vladelec, nastroyki.VLADELETS_IMYA)
+    else:
+        log.warning("VLADELETS_TELEFON не задан — владелец админом не заведён")
     for syroy in nastroyki.ADMIN_TELEFONY.split(","):
         nomer = vhod.normalizovat_telefon(syroy)
         if nomer:
