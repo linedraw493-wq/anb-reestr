@@ -88,6 +88,8 @@ export interface ModerApi {
   create(telefon: string, nick: string): Promise<Zayavka>
   /** убрать из каталога, не теряя данных — спека, день 5 */
   skryt(id: string, skryt: boolean): Promise<void>
+  /** готовые причины отказа: список правится в базе, тут только читаем */
+  prichiny(): Promise<string[]>
 }
 
 export const pustayaKarta: Karta = {
@@ -299,6 +301,49 @@ export const fakeModerApi: ModerApi = {
     zayavki.unshift(z)
     return { ...z, karta: { ...z.karta } }
   },
+  async prichiny() {
+    await wait(150)
+    return [...PRICHINY_ZAPASNYE]
+  },
+}
+
+/** Те же формулировки, что лежат в базе (миграция 006). Для заглушки. */
+const PRICHINY_ZAPASNYE = [
+  'Цифры не сходятся со скрином статистики',
+  'Скрин нечитаемый — загрузите чёткий',
+  'Ссылка ведёт не на ваш профиль',
+  'Тематика не соответствует содержанию профиля',
+  'Профиль закрыт — рекламодатель не сможет его посмотреть',
+  'Ставка выглядит ошибочной',
+]
+
+/* -------------------------------------------------------------- кружок ника */
+
+/**
+ * Две буквы для кружка: «@alina_makeup_uka» → «AM».
+ *
+ * Жила в двух экранах слово в слово — каталог и страница блогера; сведена
+ * сюда 06.09.2026, когда к ней добавился цвет.
+ */
+export function initsialy(nick: string): string {
+  const clean = nick.replace(/^@/, '')
+  if (!clean) return '—'
+  const parts = clean.split(/[._-]/).filter(Boolean)
+  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
+}
+
+/**
+ * Цвет кружка — из ника.
+ *
+ * Фото есть у одной карточки из трёхсот шести, у остальных стоят буквы.
+ * Одним цветом они сливались в серую кашу. Оттенок считается из букв: тот же
+ * блогер всегда того же цвета, а не случайного при каждой перерисовке.
+ * Сам цвет собирает CSS (`.ava.ton`) — здесь только число градусов.
+ */
+export function ton(nick: string): { '--ton': string } {
+  let s = 0
+  for (const ch of nick) s = (s * 31 + ch.codePointAt(0)!) % 360
+  return { '--ton': `${s}deg` }
 }
 
 /** 48200 → «48 200». Для показа, не для хранения. */

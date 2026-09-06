@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { korotko, razdelit, type Karta as KartaTip } from '../lib/card'
+import { initsialy, korotko, razdelit, ton, type Karta as KartaTip } from '../lib/card'
 import {
   izAdresa,
   PORYADKI,
@@ -75,6 +75,24 @@ export default function Katalog() {
   const zadano = skolkoZadano(filtry)
   const pervayaZagruzka = vydacha === null && gruzim
 
+  /* Сколько карточек в реестре всего — для цифры в шапке. Под фильтром
+     сервер отдаёт найденное, поэтому спрашиваем отдельно и один раз: по
+     ссылке с готовыми фильтрами (а их и рассылают) «без отбора» ответа
+     может не случиться вовсе, и в шапке висел прочерк. */
+  const [vsegoVReestre, setVsego] = useState<number | null>(null)
+  useEffect(() => {
+    if (zadano === 0 && vydacha) {
+      setVsego(vydacha.vsego)
+      return
+    }
+    if (vsegoVReestre !== null) return
+    vzyatKatalog({ ...PUSTYE, stranica: 1 })
+      .then((v) => setVsego(v.vsego))
+      .catch(() => {
+        // цифра в шапке — украшение, а не условие работы каталога
+      })
+  }, [vydacha, zadano, vsegoVReestre])
+
   return (
     <div className="form-page katalog">
       <Shapka />
@@ -82,9 +100,24 @@ export default function Katalog() {
       <header className="form-head">
         <h1>Каталог блогеров</h1>
         <p className="sub">
-          Блогеры Казахстана в одном месте. Отберите по тематике, городу, охвату и цене —
-          и напишите напрямую в соцсети.
+          Блогеры Казахстана в одном месте. Отберите по тематике, городу, охвату и цене — и напишите
+          напрямую в соцсети.
         </p>
+
+        {/* Три цифры про сам реестр, а не про текущий отбор: сколько в нём
+            карточек, городов и тематик. Число найденных живёт в панели ниже
+            и меняется на каждый фильтр — здесь бы оно только мельтешило. */}
+        <div className="hero-cifry">
+          <span className="hero-cifra">
+            <b>{vsegoVReestre === null ? '—' : razdelit(String(vsegoVReestre))}</b> блогеров
+          </span>
+          <span className="hero-cifra">
+            <b>{Object.keys(spr.goroda).length}</b> городов
+          </span>
+          <span className="hero-cifra">
+            <b>{spr.tematiki.length}</b> тематик
+          </span>
+        </div>
       </header>
 
       {/* Панель управления. Фильтры — за кнопкой: в каталоге главное это
@@ -107,10 +140,7 @@ export default function Katalog() {
             >
               Списком
             </button>
-            <button
-              className={`perekl-b${naKarte ? ' on' : ''}`}
-              onClick={() => setNaKarte(true)}
-            >
+            <button className={`perekl-b${naKarte ? ' on' : ''}`} onClick={() => setNaKarte(true)}>
               На карте
             </button>
           </div>
@@ -320,7 +350,14 @@ export default function Katalog() {
 
           {vydacha && vydacha.karty.length === 0 && !gruzim && (
             <div className="pusto">
-              <p className="sub">Никого не нашли под такой отбор.</p>
+              <span className="znak" aria-hidden="true">
+                ⌕
+              </span>
+              <h2>Никого не нашли</h2>
+              <p className="sub">
+                Под такой отбор в реестре пока нет карточек. Снимите часть условий — например, охват
+                или цену: у большинства блогеров они ещё не заполнены.
+              </p>
               <button className="btn ghost" onClick={() => setAdres(new URLSearchParams())}>
                 Сбросить фильтры
               </button>
@@ -358,7 +395,30 @@ export default function Katalog() {
           )}
         </div>
       </div>
+
+      <Podval />
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ подвал */
+
+/** Кто это сделал и куда идти блогеру, который попал сюда со стороны. */
+function Podval() {
+  return (
+    <footer className="podval">
+      <span>
+        <span className="podval-imya">Ассоциация блогеров</span> · реестр блогеров Казахстана
+      </span>
+      <span className="podval-svyazi">
+        <Link className="linkbtn" to="/kartochka">
+          Я блогер — заполнить карточку
+        </Link>
+        <Link className="linkbtn" to="/vhod">
+          Войти
+        </Link>
+      </span>
+    </footer>
   )
 }
 
@@ -467,8 +527,8 @@ function KatalozhnayaKarta({ k }: { k: KartaTip }) {
         {k.photo ? (
           <img className="ava ava-img" src={k.photo} alt="" />
         ) : (
-          <span className="ava" aria-hidden="true">
-            {initials(k.nick)}
+          <span className="ava ton" style={ton(k.nick) as React.CSSProperties} aria-hidden="true">
+            {initsialy(k.nick)}
           </span>
         )}
         <span className="pv-txt">
@@ -477,6 +537,19 @@ function KatalozhnayaKarta({ k }: { k: KartaTip }) {
               о себе не указал. Честно говорим это, а не оставляем пусто. */}
           <span className="pv-mt">{podpis || 'профиль ещё не заполнен'}</span>
         </span>
+
+        {/* Значки соцсетей стояли отдельной строкой. У большинства карточек
+            ссылок нет, и строка оставалась пустой полосой посреди карточки —
+            перенесены наверх, к нику, где их и ищут глазами. */}
+        {seti.length > 0 && (
+          <span className="pv-icons">
+            {seti.map((s) => (
+              <span key={s.url} className="ic" title={s.name}>
+                {s.short}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
 
       <div className="pv-nums">
@@ -490,26 +563,20 @@ function KatalozhnayaKarta({ k }: { k: KartaTip }) {
         </span>
       </div>
 
-      <div className="pv-row">
-        <span className="pv-icons">
-          {seti.map((s) => (
-            <span key={s.url} className="ic" title={s.name}>
-              {s.short}
-            </span>
-          ))}
+      {/* Низ карточки: слева цена, справа откуда взяты цифры. Раньше это были
+          две отдельные строки, и карточка на пустых заготовках зияла. */}
+      <div className="kk-niz">
+        <span className="kk-cena">
+          {k.dogovornaya
+            ? 'Договорная'
+            : k.stavka
+              ? `${razdelit(k.stavka)} ₸ за пост`
+              : 'Цена не указана'}
+          {k.yazyk && <span className="kk-yazyk"> · {k.yazyk.toLowerCase()}</span>}
         </span>
         <span className={`pill ${k.istochnik === 'screen' ? 'ok' : 'say'}`}>
           {k.istochnik === 'screen' ? '✓ со скрина' : 'со слов'}
         </span>
-      </div>
-
-      <div className="pv-foot">
-        {k.dogovornaya
-          ? 'Ставка договорная'
-          : k.stavka
-            ? `${razdelit(k.stavka)} ₸ за пост`
-            : 'Ставка не указана'}
-        {k.yazyk && ` · ${k.yazyk.toLowerCase()}`}
       </div>
     </Link>
   )
@@ -528,13 +595,6 @@ function aktivnye(f: Filtry): { key: keyof Filtry; label: string }[] {
   if (f.stavka_do) spisok.push({ key: 'stavka_do', label: `до ${razdelit(f.stavka_do)} ₸` })
   if (f.poisk) spisok.push({ key: 'poisk', label: `«${f.poisk}»` })
   return spisok
-}
-
-function initials(nick: string): string {
-  const clean = nick.replace(/^@/, '')
-  if (!clean) return '—'
-  const parts = clean.split(/[._-]/).filter(Boolean)
-  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
 }
 
 export { PUSTYE }

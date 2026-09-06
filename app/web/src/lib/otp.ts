@@ -1,11 +1,15 @@
 /* ---------------------------------------------------------------------------
-   Выдача и проверка кода. Отдельный выключатель от остального:
+   Код входа на заглушке.
 
      VITE_OTP=fake — код всегда 000000, ничего никуда не летит
-     VITE_OTP=live — код уходит в Telegram-бота через /api/otp
+     VITE_OTP=live — код выдаёт и проверяет сервер (`/api/auth/start` и
+                     `/api/auth/check`), а сюда никто не заходит
 
-   Всё остальное (приглашения, карточки, заявки) пока живёт на заглушке —
-   для них нужна база, а её на Vercel нет. Появится на Railway.
+   Раньше здесь жил ещё и «живой» путь — запрос на `/api/otp`, отдельную
+   функцию Vercel времён заглушки. Сервера тогда не было, кода негде было
+   хранить. Сервер появился 02.09.2026, вход переехал в `/api/auth/*`, и
+   тот путь остался мёртвым: маршрута `/api/otp` на сервере нет вовсе.
+   Убран 06.09.2026 вместе с функцией `web/api/otp.js`.
 --------------------------------------------------------------------------- */
 
 export const OTP_LIVE = (import.meta.env.VITE_OTP ?? 'fake') === 'live'
@@ -33,35 +37,8 @@ export const fakeOtp: Otp = {
   },
 }
 
-async function post(body: unknown) {
-  const res = await fetch('/api/otp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  return (await res.json()) as { ok: boolean; ticket?: string; resendAfter?: number }
-}
-
-export const liveOtp: Otp = {
-  async start(label) {
-    try {
-      const r = await post({ action: 'start', label })
-      if (!r.ok || !r.ticket) return { ok: false, reason: 'no-delivery' }
-      return { ok: true, ticket: r.ticket, resendAfter: r.resendAfter ?? 60 }
-    } catch {
-      return { ok: false, reason: 'no-delivery' }
-    }
-  },
-  async check(ticket, code) {
-    try {
-      return (await post({ action: 'check', ticket, code })).ok
-    } catch {
-      return false
-    }
-  },
-}
-
-export const otp: Otp = OTP_LIVE ? liveOtp : fakeOtp
+/** На заглушке — только заглушка; живой вход идёт мимо этого файла. */
+export const otp: Otp = fakeOtp
 
 export const otpPodskazka = OTP_LIVE
   ? 'Код уходит в Telegram-бота @Kikokpklkbot — все коды падают в один чат'

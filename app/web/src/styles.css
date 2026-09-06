@@ -1,48 +1,72 @@
 /* ---------------------------------------------------------------------------
-   Простой вид, без оформления.
+   Вид сайта. Один блок переменных — весь облик.
 
-   Слово владельца 02.09.2026: «дизайн убери, без него сейчас, нам нужно
-   нормально MVP собрать рабочее». Поэтому здесь ровно то, что нужно, чтобы
-   читалось: белый лист, чёрный текст, серые линии и один синий на действие.
-   Ни тёмной темы, ни теней, ни своих шрифтов — системный шрифт у человека
-   уже стоит и грузится мгновенно.
+   Было (слово владельца 02.09.2026): «дизайн убери, без него сейчас, нам
+   нужно нормально MVP собрать рабочее». Стало (слово владельца 06.09.2026):
+   «накатывай дизайн красивый». MVP собран и проверен — можно одеть.
 
-   Придёт дизайн от заказчика — переодеваем сайт правкой этого блока,
-   компоненты не трогаются.
+   Что здесь заведено:
+
+   - лист не белый, а светло-серый (`--canvas`), карточки на нём белые: так
+     видно, где кончается одна карточка и начинается другая, без жирных рамок;
+   - акцент — индиго, редкий гость: кнопка действия, выбранный фильтр, ссылка.
+     Золотой (`--gold`) стоит ровно на одном — «проверено со скрина»;
+   - тени мягкие и в три ступени, ими показываем, что лежит выше: карточка →
+     шапка при прокрутке → шторка фильтров;
+   - шрифт Inter, запасной — системный (см. index.html).
+
+   Правило прежнее: **придёт дизайн от заказчика — переодеваем сайт правкой
+   этого блока, компоненты не трогаются.**
 --------------------------------------------------------------------------- */
 
 :root {
   color-scheme: light;
 
-  /* цвет */
+  /* --------------------------------------------------------------- цвет */
   --paper: #ffffff;
   --surface: #ffffff;
-  --ink: #16181d;
-  --muted: #5c626e;
-  --faint: #8b919c;
-  --line: #dfe2e7;
-  --line-strong: #b9bec7;
-  --accent: #1a5fd0;
-  --accent-ink: #14479c;
-  --accent-soft: #eaf1fd;
-  --accent-2: #1a5fd0;
-  --accent-2-soft: #eaf1fd;
-  --on-accent: #ffffff;
-  --good: #1f7a4d;
-  --good-soft: #e6f4ec;
-  --danger: #b32626;
-  --danger-soft: #fbeaea;
-  --focus: #1a5fd0;
+  /* фон страницы: карточки лежат на нём, а не сливаются с ним */
+  --canvas: #f4f6fb;
+  --ink: #111524;
+  --muted: #5a6379;
+  --faint: #8e96a8;
+  --line: #e7eaf2;
+  --line-strong: #ccd3e2;
 
-  /* шрифт — системный, свои не грузим */
-  --font-display: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --accent: #4a4de8;
+  --accent-ink: #3739c4;
+  --accent-soft: #eeeeff;
+  --accent-2: #0f9bb0;
+  --accent-2-soft: #e4f6f8;
+  --on-accent: #ffffff;
+
+  /* золотой — только «проверено со скрина», больше нигде */
+  --gold: #b47c00;
+  --gold-soft: #fdf3da;
+
+  --good: #12805c;
+  --good-soft: #e3f5ee;
+  --danger: #c32c2c;
+  --danger-soft: #fdecec;
+  --focus: #4a4de8;
+
+  /* -------------------------------------------------------------- шрифт */
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'Segoe UI Mono', 'SF Mono', monospace;
 
-  /* размер */
-  --radius: 6px;
-  --radius-lg: 8px;
+  /* ------------------------------------------------------------- размер */
+  /* высота липкой шапки: под ней встают все прилипающие колонки */
+  --shapka-h: 56px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
   --gap: 16px;
+
+  /* --------------------------------------------------------------- тень */
+  --shadow-sm: 0 1px 2px rgba(17, 21, 36, 0.05);
+  --shadow-md: 0 6px 18px -6px rgba(17, 21, 36, 0.13), 0 2px 5px rgba(17, 21, 36, 0.05);
+  --shadow-lg: 0 24px 60px -20px rgba(17, 21, 36, 0.3);
 }
 
 /* --------------------------------------------------------------------- сброс */
@@ -60,13 +84,21 @@ html {
 }
 
 body {
-  background: var(--paper);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.018em;
+  line-height: 1.2;
 }
 
 button,
@@ -105,7 +137,8 @@ input {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: 26px 22px 24px;
+  padding: 30px 26px 26px;
+  box-shadow: var(--shadow-md);
 }
 
 .wordmark {
@@ -168,6 +201,18 @@ input {
   font-size: 0.9rem;
 }
 
+/* У 305 карточек из 306 фото нет — стоят одни буквы. Одинаково бледные, они
+   сливались в кашу. Цвет кружка считается из ника (--ton, ставит карточка):
+   тот же блогер всегда того же цвета, и глазом их уже видно по отдельности. */
+.ava.ton {
+  background: hsl(var(--ton) 68% 94%);
+  color: hsl(var(--ton) 52% 32%);
+}
+
+.ava-img {
+  object-fit: cover;
+}
+
 .idcard .nm {
   font-weight: 600;
   font-size: 0.9375rem;
@@ -201,6 +246,15 @@ input {
   font-size: 1rem;
   font-weight: 500;
   letter-spacing: 0.02em;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .input::placeholder {
@@ -210,6 +264,10 @@ input {
 
 .input.bad {
   border-color: var(--danger);
+}
+
+.input.bad:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
 }
 
 /* подставленный номер: показан скрытым, редактируется по кнопке */
@@ -336,21 +394,45 @@ input {
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .btn:hover:not([disabled]) {
-  filter: brightness(0.94);
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-md);
+}
+
+.btn:active:not([disabled]) {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn[disabled] {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
+  box-shadow: none;
 }
 
 .btn.ghost {
-  background: transparent;
+  background: var(--paper);
   color: var(--ink);
   border: 1px solid var(--line-strong);
+}
+
+.btn.ghost:hover:not([disabled]) {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  filter: none;
+}
+
+/* Человек не любит ждать молча: пока идёт запрос, кнопка так и говорит. */
+.btn[aria-busy='true'] {
+  opacity: 0.75;
+  cursor: progress;
 }
 
 /* ----------------------------------------------------------------- плашки */
@@ -444,29 +526,65 @@ input {
   padding: 34px 20px calc(96px + env(safe-area-inset-bottom));
 }
 
+/* Каталогу тесно в 1080: при трёх колонках карточки вытягиваются. */
+.form-page.katalog {
+  max-width: 1240px;
+}
+
 .form-page.narrow {
   max-width: 520px;
 }
 
 /* Полоска сверху: слева название, справа две-три кнопки.
    Было семь ссылок в ряд — «перенасыщенно», слово владельца 02.09.2026.
-   Всё хозяйство модератора убрано под одну кнопку «Админка». */
+   Всё хозяйство модератора убрано под одну кнопку «Админка».
+
+   С 06.09.2026 полоска липнет к верху экрана: в каталоге триста карточек, и
+   без неё, прокрутив вниз, некуда нажать «войти». Отрицательные отступы —
+   чтобы полоса шла во всю ширину, а её содержимое стояло по колонке текста. */
 .shapka {
+  position: sticky;
+  top: 0;
+  z-index: 35;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
-  padding-bottom: 12px;
-  margin-bottom: 22px;
+  margin: -34px -20px 26px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
 .shapka-imya {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-display);
   font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-decoration: none;
+}
+
+/* Значок: две буквы «РБ» в скруглённом квадрате. Своего знака заказчик не
+   присылал — когда пришлёт, меняется только это правило. */
+.shapka-imya::before {
+  content: 'РБ';
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent) 0%, #7b5cf0 100%);
+  color: var(--on-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .shapka-knopki {
@@ -475,6 +593,24 @@ input {
   gap: 18px;
   flex-wrap: wrap;
   font-size: 0.875rem;
+}
+
+/* На телефоне у вошедшего админа три кнопки, и вместе с названием они
+   переносятся на вторую строку — липкая шапка съедала пятую часть экрана.
+   Оставляем один значок: он и есть ссылка на главную. */
+@media (max-width: 560px) {
+  .shapka {
+    gap: 10px;
+  }
+
+  .shapka-imya {
+    font-size: 0;
+  }
+
+  .shapka-knopki {
+    gap: 14px;
+    font-size: 0.8125rem;
+  }
 }
 
 /* Меню админки: список выпадает под кнопкой. */
@@ -511,12 +647,37 @@ input {
   background: var(--accent-soft);
 }
 
-/* Пока грузим первую страницу — места под карточки, а не пустой экран. */
+/* Пока грузим первую страницу — места под карточки, а не пустой экран.
+   Полоса света бежит по ним слева направо: видно, что не зависло. */
 .kk.skelet {
-  min-height: 168px;
-  background: var(--accent-soft);
-  border-style: dashed;
+  min-height: 176px;
+  border-style: solid;
   pointer-events: none;
+  background:
+    linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.85) 50%, transparent 80%)
+      var(--accent-soft);
+  background-size: 220% 100%;
+  animation: begit 1.25s ease-in-out infinite;
+}
+
+@keyframes begit {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/* Прокрутка у человека может быть выключена по здоровью — уважаем. */
+@media (prefers-reduced-motion: reduce) {
+  .kk.skelet {
+    animation: none;
+  }
+
+  .kk:hover {
+    transform: none;
+  }
 }
 
 .form-head {
@@ -532,6 +693,53 @@ input {
 
 .form-head .sub {
   max-width: 62ch;
+}
+
+/* ------------------------------------------------------- шапка каталога */
+
+/* Первый экран каталога: заголовок покрупнее и три цифры под ним. Цифры не
+   украшение — по ним сразу видно, что реестр живой и насколько он полон. */
+.katalog .form-head {
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.katalog .form-head h1 {
+  font-size: clamp(1.75rem, 5vw, 2.6rem);
+  letter-spacing: -0.03em;
+}
+
+.katalog .form-head .sub {
+  font-size: 1rem;
+  max-width: 56ch;
+}
+
+.hero-cifry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.hero-cifra {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hero-cifra b {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .form-grid {
@@ -574,7 +782,7 @@ input {
 
   .side-inner {
     position: sticky;
-    top: 28px;
+    top: calc(var(--shapka-h) + 16px);
   }
 }
 
@@ -797,12 +1005,20 @@ select.input[disabled] {
 
 .chip {
   border: 1px solid var(--line-strong);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--paper);
   color: var(--ink);
   padding: 7px 13px;
   font-size: 0.8125rem;
   cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.chip:hover:not([disabled]) {
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .chip.on {
@@ -815,6 +1031,16 @@ select.input[disabled] {
 .chip[disabled] {
   opacity: 0.4;
   cursor: default;
+}
+
+/* Готовые причины отказа: строки длинные, в одну линию не встают. */
+.prichiny {
+  margin: 0 0 8px;
+}
+
+.prichiny .chip {
+  text-align: left;
+  line-height: 1.35;
 }
 
 /* ------------------------------------------------------- переключатель */
@@ -924,6 +1150,12 @@ select.input[disabled] {
   border-bottom: 1px solid var(--line);
 }
 
+/* В каталоге низ карточки уже отчёркнут своей линией — двух подряд не надо. */
+.kk .pv-nums {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
 .num {
   display: flex;
   flex-direction: column;
@@ -975,14 +1207,19 @@ select.input[disabled] {
   white-space: nowrap;
 }
 
+/* Проверенное со скрина — единственное золотое место на сайте. */
 .pill.ok {
-  background: var(--good-soft, var(--accent-soft));
-  color: var(--good);
+  background: var(--gold-soft);
+  color: var(--gold);
 }
 
+/* «Со слов» было красным. Но так стоит вся база — 307 карточек из 307, — и
+   каталог выходил в тревожных пятнах, будто везде беда. Это не беда, а
+   просто «человек сказал, скрином не подтверждено». Спокойный серый. */
 .pill.say {
-  background: var(--danger-soft);
-  color: var(--danger);
+  background: var(--canvas);
+  color: var(--muted);
+  border: 1px solid var(--line);
 }
 
 /* «скоро» — то, что задумано, но ещё не включено. Напоминалка, не обещание. */
@@ -1173,8 +1410,8 @@ select.input[disabled] {
 
   .moder-list {
     position: sticky;
-    top: 28px;
-    max-height: calc(100dvh - 56px);
+    top: calc(var(--shapka-h) + 16px);
+    max-height: calc(100dvh - var(--shapka-h) - 32px);
     overflow-y: auto;
   }
 
@@ -1459,8 +1696,8 @@ select.input[disabled] {
 
   .kat-filtry-inner {
     position: sticky;
-    top: 24px;
-    max-height: calc(100dvh - 48px);
+    top: calc(var(--shapka-h) + 16px);
+    max-height: calc(100dvh - var(--shapka-h) - 32px);
     overflow-y: auto;
   }
 }
@@ -1473,6 +1710,7 @@ select.input[disabled] {
   border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 18px 17px;
+  box-shadow: var(--shadow-lg);
 }
 
 .kat-fhead {
@@ -1559,21 +1797,129 @@ select.input[disabled] {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 16px;
+  padding: 18px;
   text-decoration: none;
   color: inherit;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .kk:hover {
   border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
+/* Верх карточки: кружок, ник с подписью, значки соцсетей справа.
+   До 06.09.2026 у `.kk-top` не было правил вовсе — кружок стоял отдельной
+   строкой над ником, и карточка начиналась с пустого места. */
+.kk-top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.kk-top .pv-txt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kk-top .pv-nm,
+.kk-top .pv-mt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kk-top .pv-icons {
+  flex: 0 0 auto;
+}
+
+/* Низ карточки: цена слева, «откуда цифры» справа, по одной линии. */
+.kk-niz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.kk-cena {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kk-yazyk {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Пусто — это тоже экран, а не дырка: что случилось и что делать дальше. */
 .pusto {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 12px;
-  padding: 26px 0;
+  padding: 48px 24px;
+  background: var(--paper);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+
+.pusto .znak {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 1.25rem;
+}
+
+.pusto h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.pusto .sub {
+  max-width: 42ch;
+}
+
+.pusto .btn {
+  width: auto;
+  min-width: 190px;
+}
+
+/* Тот же блок в узкой колонке админки — поменьше и без рамки во всю высоту. */
+.pusto.malo {
+  padding: 28px 18px;
+  gap: 8px;
+}
+
+.pusto.malo .znak {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+}
+
+.pusto.malo h2 {
+  font-size: 0.9375rem;
+}
+
+.pusto.malo .sub {
+  font-size: 0.8125rem;
 }
 
 .stranicy {
@@ -1773,6 +2119,11 @@ select.input[disabled] {
   flex-direction: column;
   gap: 11px;
   margin-bottom: 20px;
+  padding: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .kat-panel-ryad {
@@ -1826,8 +2177,11 @@ select.input[disabled] {
   grid-template-columns: 1fr !important;
 }
 
+/* 232px не хватало: ник вида @korobeinikova_uliana обрезался многоточием
+   почти в каждой карточке. 262px — четыре колонки на большом экране и
+   целый ник. */
 .kat-setka {
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(262px, 1fr));
 }
 
 /* фильтры — шторка на любом экране, не только на телефоне */
@@ -2188,4 +2542,33 @@ select.input[disabled] {
     margin-left: 0;
     width: 100%;
   }
+}
+
+/* ---------------------------------------------------------------- подвал */
+
+/* Кто это сделал и куда идти дальше. До 06.09.2026 подвала не было вовсе:
+   страница просто обрывалась, и блогеру, попавшему в каталог со стороны,
+   негде было прочитать, что он тоже может завести карточку. */
+.podval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-top: 42px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.podval-imya {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.podval-svyazi {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
 }

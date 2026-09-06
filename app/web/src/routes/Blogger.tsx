@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { korotko, razdelit, type Karta } from '../lib/card'
+import { initsialy, korotko, razdelit, ton, type Karta } from '../lib/card'
 import { vzyatOdnogo } from '../lib/katalog'
 import { razobratVse } from '../lib/seti'
 import { Shapka } from '../ui/Shapka'
@@ -34,9 +34,7 @@ export default function Blogger() {
         <Shapka />
         <header className="form-head">
           <h1>Карточки нет</h1>
-          <p className="sub">
-            Она снята с публикации или её никогда не было. Поищите в каталоге.
-          </p>
+          <p className="sub">Она снята с публикации или её никогда не было. Поищите в каталоге.</p>
         </header>
         <Link className="btn" to="/katalog">
           В каталог
@@ -68,8 +66,12 @@ export default function Blogger() {
           {karta.photo ? (
             <img className="ava ava-img ogromnaya" src={karta.photo} alt="" />
           ) : (
-            <span className="ava ogromnaya" aria-hidden="true">
-              {initials(karta.nick)}
+            <span
+              className="ava ogromnaya ton"
+              style={ton(karta.nick) as React.CSSProperties}
+              aria-hidden="true"
+            >
+              {initsialy(karta.nick)}
             </span>
           )}
           <div>
@@ -145,8 +147,8 @@ export default function Blogger() {
         </section>
 
         <p className="fine center">
-          Язык контента: {karta.yazyk?.toLowerCase() || 'не указан'} · карточку смотрели{' '}
-          {prosmotry} раз
+          Язык контента: {karta.yazyk?.toLowerCase() || 'не указан'} · карточку смотрели {prosmotry}{' '}
+          раз
         </p>
       </div>
     </div>
@@ -159,11 +161,4 @@ function cenaZaTysyachu(k: Karta): string {
   const stavka = Number(k.stavka.replace(/\D/g, ''))
   if (!ohvat || !stavka || k.dogovornaya) return '—'
   return razdelit(String(Math.round((stavka / ohvat) * 1000)))
-}
-
-function initials(nick: string): string {
-  const clean = nick.replace(/^@/, '')
-  if (!clean) return '—'
-  const parts = clean.split(/[._-]/).filter(Boolean)
-  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
 }

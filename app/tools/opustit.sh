@@ -5,4 +5,7 @@ for port in 8000 5173; do
   [ -n "$PID" ] && powershell -NoProfile -Command "Stop-Process -Id $PID -Force" 2>/dev/null \
     && echo "порт $port освобождён"
 done
-docker stop anb-db >/dev/null 2>&1 && echo "база остановлена"
+PORT="${ANB_DB_PORT:-55432}"
+IMYA=anb-db
+[ "$PORT" = "55432" ] || IMYA="anb-db-$PORT"
+docker stop "$IMYA" >/dev/null 2>&1 && echo "база остановлена"

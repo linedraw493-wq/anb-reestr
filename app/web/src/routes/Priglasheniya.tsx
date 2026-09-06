@@ -14,12 +14,7 @@ import { Shapka } from '../ui/Shapka'
 --------------------------------------------------------------------------- */
 
 type Sostoyanie =
-  | 'net-ssylki'
-  | 'ne-otkryval'
-  | 'otkryl'
-  | 'ispolzovana'
-  | 'prosrochena'
-  | 'zaregistrirovalsya'
+  'net-ssylki' | 'ne-otkryval' | 'otkryl' | 'ispolzovana' | 'prosrochena' | 'zaregistrirovalsya'
 
 type Stroka = {
   chelovekId: number
@@ -223,8 +218,8 @@ export default function Priglasheniya() {
         <div className="wordmark">Ассоциация блогеров · приглашения</div>
         <h1>Приглашения</h1>
         <p className="sub">
-          Личная ссылка на каждого блогера. Скопируйте по одной или выгрузите таблицей и
-          разошлите своими каналами — почтой, в мессенджере, как удобно.
+          Личная ссылка на каждого блогера. Скопируйте по одной или выгрузите таблицей и разошлите
+          своими каналами — почтой, в мессенджере, как удобно.
         </p>
       </header>
 
@@ -260,8 +255,8 @@ export default function Priglasheniya() {
           </div>
         )}
         <p className="fine">
-          Для тех, кого нет в таблице заказчика. Ссылка одноразовая, номер блогер впишет
-          сам при входе.
+          Для тех, кого нет в таблице заказчика. Ссылка одноразовая, номер блогер впишет сам при
+          входе.
         </p>
       </div>
 
@@ -285,8 +280,8 @@ export default function Priglasheniya() {
           <span className="v-head">Резервный код для {kod.kto}</span>
           <span className="rezerv-kod">{kod.kod}</span>
           <p className="fine">
-            Продиктуйте его человеку голосом. Код живёт {kod.minut} минут и заменяет
-            предыдущий. В Telegram он не уходил.
+            Продиктуйте его человеку голосом. Код живёт {kod.minut} минут и заменяет предыдущий. В
+            Telegram он не уходил.
           </p>
           <button className="linkbtn" onClick={() => setKod(null)}>
             закрыть
@@ -322,9 +317,23 @@ export default function Priglasheniya() {
       </div>
 
       <div className="note hint">
-        Ссылка — это вход в карточку: кто её открыл, тот и зайдёт. Не выкладывайте список в
-        общий чат. Срок жизни ссылки 30 дней.
+        Ссылка — это вход в карточку: кто её открыл, тот и зайдёт. Не выкладывайте список в общий
+        чат. Срок жизни ссылки 30 дней.
       </div>
+
+      {vidno.length === 0 && (
+        <div className="pusto">
+          <span className="znak" aria-hidden="true">
+            ⌕
+          </span>
+          <h2>{poisk ? 'Никого не нашли' : 'Здесь пусто'}</h2>
+          <p className="sub">
+            {poisk
+              ? `По «${poisk}» в этой вкладке никого нет. Проверьте ник или посмотрите другую вкладку.`
+              : 'В этой вкладке пока никого. Ссылки для блогеров из таблицы Ассоциации лежат во вкладке «Все».'}
+          </p>
+        </div>
+      )}
 
       <ul className="prig-spisok">
         {vidno.slice(0, 200).map((s) => (

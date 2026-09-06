@@ -49,14 +49,20 @@ export function Karta({
     if (!gruppa) return
     gruppa.clearLayers()
 
+    // Цвет кружков берём из тех же переменных, что и весь сайт: иначе после
+    // смены оформления карта осталась бы прежнего цвета одна на весь сайт.
+    const stili = getComputedStyle(document.documentElement)
+    const akcent = stili.getPropertyValue('--accent').trim() || '#4a4de8'
+    const akcentTemnee = stili.getPropertyValue('--accent-ink').trim() || '#3739c4'
+
     const maks = Math.max(1, ...tochki.map((t) => t.skolko))
     for (const t of tochki) {
       const dolya = t.skolko / maks
       const krug = L.circleMarker([t.shirota, t.dolgota], {
         radius: 7 + dolya * 16,
         weight: vybran === t.gorod ? 3 : 1.5,
-        color: vybran === t.gorod ? '#3b33a8' : '#5b52d6',
-        fillColor: '#5b52d6',
+        color: vybran === t.gorod ? akcentTemnee : akcent,
+        fillColor: akcent,
         fillOpacity: vybran === t.gorod ? 0.75 : 0.4,
       })
       krug.bindTooltip(`${t.gorod} · ${t.skolko}`, { direction: 'top' })

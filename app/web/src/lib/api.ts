@@ -149,6 +149,17 @@ const liveModerApi: ModerApi = {
   update: async (karta) => void (await post('/api/moder/update', { ...karta, id: karta.id })),
   create: (telefon, nick) => post<Zayavka>('/api/moder/create', { telefon, nick }),
   skryt: async (id, skryt) => void (await post('/api/moder/skryt', { id, skryt })),
+  async prichiny() {
+    try {
+      const otvet = await get<{ prichiny?: { id: number; tekst: string }[] }>(
+        '/api/moder/prichiny',
+      )
+      return (otvet.prichiny ?? []).map((p) => p.tekst)
+    } catch {
+      // Список — подсказка, а не условие работы: не пришёл, модератор пишет руками.
+      return []
+    }
+  },
 }
 
 export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi

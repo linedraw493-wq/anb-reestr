@@ -64,10 +64,9 @@ async def zhizn(_: FastAPI):
             len(nastroyki.MASTER_KOD),
         )
     if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
-        log.warning(
-            "Вход по логину включён (логин %r) — сменить или очистить перед боем.",
-            nastroyki.ADMIN_LOGIN,
-        )
+        # Оставлен словом владельца 06.09.2026 — клиенту он нужен, пока нет
+        # SMS-оператора. Пароль живёт только в настройках окружения.
+        log.info("вход в админку по логину включён (логин %r)", nastroyki.ADMIN_LOGIN)
     if chtenie.vklyucheno():
         log.info("чтение скрина включено, модель %s", nastroyki.MODEL_CHTENIYA)
     else:
@@ -1119,6 +1118,24 @@ async def otklonit(request: Request):
                 prichina,
             )
     return {"ok": True}
+
+
+@app.get("/api/moder/prichiny")
+async def prichiny_otkaza(request: Request):
+    """Готовые причины отказа — чтобы модератор не набирал одно и то же.
+
+    Лежат таблицей с 02.09.2026, но к экрану до 06.09 подключены не были:
+    модератор писал причину руками, и блогеры получали шесть разных
+    формулировок одного и того же. Своя причина текстом остаётся — список
+    только подставляет текст в поле.
+    """
+    if await _modertor(request) is None:
+        return _net_prav()
+    async with baza.pul().acquire() as conn:
+        stroki = await conn.fetch(
+            "select id, tekst from prichiny_otkaza where vidna order by poryadok, tekst"
+        )
+    return {"prichiny": [dict(r) for r in stroki]}
 
 
 @app.post("/api/moder/remove")

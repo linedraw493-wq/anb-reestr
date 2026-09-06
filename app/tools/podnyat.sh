@@ -7,20 +7,30 @@ KOREN=/c/bloggers/app
 SCRATCH="${TEMP:-/tmp}/anb"
 mkdir -p "$SCRATCH"
 
+# Порт базы. По умолчанию 55432. Windows иногда запирает случайный кусок
+# портов под себя (Hyper-V), и тогда docker не встаёт на 55432: «bind: An
+# attempt was made to access a socket in a way forbidden». Запертые куски
+# видно так:  netsh interface ipv4 show excludedportrange protocol=tcp
+# Лечится перезапуском службы winnat (нужны права админа) или своим портом:
+#   ANB_DB_PORT=55632 bash app/tools/podnyat.sh
+PORT="${ANB_DB_PORT:-55432}"
+IMYA=anb-db
+[ "$PORT" = "55432" ] || IMYA="anb-db-$PORT"
+
 echo "1/3 база…"
-docker start anb-db >/dev/null 2>&1 || docker run -d --name anb-db \
+docker start "$IMYA" >/dev/null 2>&1 || docker run -d --name "$IMYA" \
   -e POSTGRES_USER=reestr -e POSTGRES_PASSWORD=reestr -e POSTGRES_DB=reestr \
-  -p 55432:5432 postgres:17-alpine >/dev/null
+  -p "$PORT:5432" postgres:17-alpine >/dev/null
 for i in $(seq 1 20); do
-  docker exec anb-db pg_isready -U reestr >/dev/null 2>&1 && break
+  docker exec "$IMYA" pg_isready -U reestr >/dev/null 2>&1 && break
   sleep 2
 done
-docker exec anb-db pg_isready -U reestr >/dev/null 2>&1 \
-  && echo "    postgres на 55432" || { echo "    база не поднялась"; exit 1; }
+docker exec "$IMYA" pg_isready -U reestr >/dev/null 2>&1 \
+  && echo "    postgres на $PORT" || { echo "    база не поднялась"; exit 1; }
 
 echo "2/3 сервер…"
 znach() { grep "^$1=" "$KOREN/.env" | cut -d= -f2-; }
-export DATABASE_URL='postgresql://reestr:reestr@localhost:55432/reestr'
+export DATABASE_URL="postgresql://reestr:reestr@localhost:$PORT/reestr"
 export TELEGRAM_BOT_TOKEN="$(znach TELEGRAM_BOT_TOKEN)"
 export TELEGRAM_CODE_CHAT_ID="$(znach TELEGRAM_CODE_CHAT_ID)"
 export OTP_SECRET="$(znach OTP_SECRET)"

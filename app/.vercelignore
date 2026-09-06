@@ -15,7 +15,4 @@
 web/node_modules
 web/dist
 web/.vercel
-web/api
-web/vercel.json
 tools
-Dockerfile

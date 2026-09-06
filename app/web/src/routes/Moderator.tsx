@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { moderApi, NetDostupa } from '../lib/api'
 import {
+  initsialy,
   razdelit,
   STATUS_NAZVANIE,
+  ton,
   type CardStatus,
   type Karta,
   type StranicaZayavok,
@@ -22,6 +24,27 @@ const VKLADKI: { key: CardStatus; label: string }[] = [
   { key: 'draft', label: 'Черновики' },
 ]
 
+/** Пустая вкладка — это чаще всего хорошая новость, а не поломка. */
+const PUSTAYA_VKLADKA: Record<CardStatus, { zagolovok: string; poyasnenie: string }> = {
+  moderation: {
+    zagolovok: 'Проверять нечего',
+    poyasnenie:
+      'Карточки идут в каталог сразу. Сюда попадают только спорные — те, где цифры разошлись со скрином или скрин не прочитался.',
+  },
+  published: {
+    zagolovok: 'В каталоге пусто',
+    poyasnenie: 'Ни одна карточка ещё не опубликована. Разошлите приглашения блогерам.',
+  },
+  rejected: {
+    zagolovok: 'Отклонённых нет',
+    poyasnenie: 'Никому пока не отказывали. Причина отказа видна блогеру в его карточке.',
+  },
+  draft: {
+    zagolovok: 'Черновиков нет',
+    poyasnenie: 'Черновик — это карточка, которую блогер начал, но ещё не отправил.',
+  },
+}
+
 /** Инструмент модератора: заявки, проверка, правка, удаление, добавление. */
 export default function Moderator() {
   const navigate = useNavigate()
@@ -34,6 +57,7 @@ export default function Moderator() {
   const [vybran, setVybran] = useState<string | null>(null)
   const [pravka, setPravka] = useState<Karta | null>(null)
   const [otkaz, setOtkaz] = useState('')
+  const [prichiny, setPrichiny] = useState<string[]>([])
   const [zanyat, setZanyat] = useState(false)
   const [beda, setBeda] = useState<'net-prav' | 'net-svyazi' | null>(null)
   const pervyyRaz = useRef(true)
@@ -76,6 +100,12 @@ export default function Moderator() {
     void perechitat(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vkladka, stranica])
+
+  // Готовые причины отказа. Читаются один раз: список короткий и меняется
+  // редко, а модератору важно не набирать одно и то же по двадцать раз.
+  useEffect(() => {
+    void moderApi.prichiny().then(setPrichiny)
+  }, [])
 
   const spisok = vse ?? []
 
@@ -128,8 +158,8 @@ export default function Moderator() {
         <div className="wordmark">Ассоциация блогеров · модератор</div>
         <h1>Проверка карточек</h1>
         <p className="sub">
-          Проверка при регистрации временно выключена — карточки идут в каталог сразу.
-          Отсюда их всё равно можно править, скрывать и возвращать.
+          Проверка при регистрации временно выключена — карточки идут в каталог сразу. Отсюда их всё
+          равно можно править, скрывать и возвращать.
         </p>
       </header>
 
@@ -171,7 +201,13 @@ export default function Moderator() {
           </button>
 
           {spisok.length === 0 ? (
-            <p className="fine empty-note">Здесь пусто.</p>
+            <div className="pusto malo">
+              <span className="znak" aria-hidden="true">
+                ✓
+              </span>
+              <h2>{PUSTAYA_VKLADKA[vkladka].zagolovok}</h2>
+              <p className="sub">{PUSTAYA_VKLADKA[vkladka].poyasnenie}</p>
+            </div>
           ) : (
             <ul className="zayavki">
               {spisok.map((z) => {
@@ -182,8 +218,12 @@ export default function Moderator() {
                       className={`zayavka${vybran === z.karta.id ? ' on' : ''}`}
                       onClick={() => otkryt(z)}
                     >
-                      <span className="ava" aria-hidden="true">
-                        {initials(z.karta.nick)}
+                      <span
+                        className="ava ton"
+                        style={ton(z.karta.nick) as React.CSSProperties}
+                        aria-hidden="true"
+                      >
+                        {initsialy(z.karta.nick)}
                       </span>
                       <span className="z-txt">
                         <span className="z-nm">{z.karta.nick || 'без ника'}</span>
@@ -231,7 +271,15 @@ export default function Moderator() {
         {/* ------------------------------------------------------- карточка */}
         <div className="moder-detail">
           {!tekushchaya || !pravka ? (
-            <p className="fine empty-note">Выберите заявку слева.</p>
+            <div className="pusto malo">
+              <span className="znak" aria-hidden="true">
+                ←
+              </span>
+              <h2>Выберите карточку</h2>
+              <p className="sub">
+                Слева список. Нажмите на карточку — здесь откроются её поля, скрин и решение.
+              </p>
+            </div>
           ) : (
             <div className="detail-inner">
               <button className="linkbtn back" onClick={() => setVybran(null)}>
@@ -348,9 +396,7 @@ export default function Moderator() {
                     <select
                       className="input"
                       value={pravka.gorod}
-                      onChange={(e) =>
-                        setPravka({ ...pravka, gorod: e.target.value, rayon: '' })
-                      }
+                      onChange={(e) => setPravka({ ...pravka, gorod: e.target.value, rayon: '' })}
                     >
                       <option value="">Выберите</option>
                       {Object.keys(spr.goroda).map((g) => (
@@ -480,12 +526,29 @@ export default function Moderator() {
 
                 <label className="fld">
                   <span className="field-label">Причина отказа</span>
+                  {prichiny.length > 0 ? (
+                    <div className="chips prichiny">
+                      {prichiny.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          className={`chip${otkaz === p ? ' on' : ''}`}
+                          onClick={() => setOtkaz(otkaz === p ? '' : p)}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <input
                     className="input"
                     value={otkaz}
-                    placeholder="Цифры не сходятся со скрином"
+                    placeholder="Или своя причина текстом"
                     onChange={(e) => setOtkaz(e.target.value)}
                   />
+                  <span className="fine">
+                    Блогер увидит эту строку — он по ней и будет исправлять карточку.
+                  </span>
                 </label>
                 <button
                   className="btn ghost"
@@ -539,8 +602,7 @@ export default function Moderator() {
 
       {USE_FAKE && (
         <div className="note hint moder-hint" role="status">
-          Заглушка: сервера нет, заявки живут до обновления страницы. ИИ-проверка тоже
-          поддельная.
+          Заглушка: сервера нет, заявки живут до обновления страницы. ИИ-проверка тоже поддельная.
         </div>
       )}
     </div>
@@ -572,9 +634,7 @@ function ProverkaBlok({ k }: { k: Karta }) {
         </span>
       </span>
       {!uverenno && (
-        <p className="fine">
-          Читалось плохо — решайте по картинке, а не по этим цифрам.
-        </p>
+        <p className="fine">Читалось плохо — решайте по картинке, а не по этим цифрам.</p>
       )}
       <dl className="p-rows">
         <div>
@@ -607,11 +667,4 @@ function statusPill(s: CardStatus): string {
   if (s === 'published') return 'ok'
   if (s === 'rejected') return 'say'
   return 'neutral'
-}
-
-function initials(nick: string): string {
-  const clean = nick.replace(/^@/, '')
-  if (!clean) return '—'
-  const parts = clean.split(/[._-]/).filter(Boolean)
-  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
 }
