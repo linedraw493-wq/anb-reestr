@@ -582,6 +582,7 @@ function ProverkaBlok({ k }: { k: Karta }) {
           <dd>
             {p.followers ? razdelit(p.followers) : '—'} подписчиков ·{' '}
             {p.reach ? razdelit(p.reach) : '—'} охват
+            {p.pokazy ? ` · ${razdelit(p.pokazy)} показов` : ''}
           </dd>
         </div>
         <div>

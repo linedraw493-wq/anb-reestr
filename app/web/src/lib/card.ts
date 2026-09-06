@@ -28,6 +28,8 @@ export type Proverka = {
   /** что прочитали с картинки */
   followers: string | null
   reach: string | null
+  /** показы — третье число, которого просит спека. В карточке поля нет */
+  pokazy: string | null
   /** насколько уверенно, 0–1 */
   tochnost: number
   /** совпало ли с тем, что человек оставил в полях */
@@ -146,6 +148,7 @@ const zayavki: Zayavka[] = [
       proverka: {
         followers: '31700',
         reach: '8900',
+        pokazy: '24100',
         tochnost: 0.94,
         sovpalo: true,
         zamechaniya: [],
@@ -171,6 +174,7 @@ const zayavki: Zayavka[] = [
       proverka: {
         followers: '19200',
         reach: null,
+        pokazy: null,
         tochnost: 0.71,
         sovpalo: false,
         zamechaniya: [
@@ -196,7 +200,14 @@ const zayavki: Zayavka[] = [
       followers: '48200',
       reach: '12400',
       istochnik: 'screen',
-      proverka: { followers: '48200', reach: '12400', tochnost: 0.97, sovpalo: true, zamechaniya: [] },
+      proverka: {
+        followers: '48200',
+        reach: '12400',
+        pokazy: '31800',
+        tochnost: 0.97,
+        sovpalo: true,
+        zamechaniya: [],
+      },
       tematiki: ['Мода', 'Красота'],
       gorod: 'Алматы',
       rayon: 'Медеуский',

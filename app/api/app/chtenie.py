@@ -1,9 +1,10 @@
 """Чтение скрина статистики моделью Claude.
 
 Блогер грузит скрин из Instagram или TikTok — модель смотрит на картинку и
-достаёт две цифры: подписчиков и охват. Дальше их видит модератор рядом с
-тем, что человек вписал руками, и решает, ставить ли пометку
-«со скрина — проверено».
+достаёт три цифры: подписчиков, охват и показы (спека, день 4). Дальше их
+видит модератор рядом с тем, что человек вписал руками, и решает, ставить ли
+пометку «со скрина — проверено». Заодно модель говорит, видно ли на кадре ник
+и дату: спека требует кадр целиком, с ником и датой.
 
 Три правила, на которых держится этот модуль:
 
@@ -41,10 +42,19 @@ PREDEL = 10_000_000_000
 ZADACHA = """Ты читаешь скриншот статистики блогера из соцсети (Instagram, TikTok,
 YouTube, Telegram) и достаёшь оттуда цифры.
 
-Нужны две:
+Нужны три:
 - «подписчики» — сколько людей подписано на аккаунт;
 - «охват» — сколько аккаунтов или людей увидели контент за период (в Instagram
-  это «охваченные аккаунты», в TikTok — просмотры видео).
+  это «охваченные аккаунты», в TikTok — уникальные зрители);
+- «показы» — сколько раз контент показали, с повторами (в Instagram так и
+  написано «показы», в TikTok — просмотры видео). Охват и показы это разное:
+  один человек может увидеть пост пять раз.
+
+Ещё две вещи проверь и скажи честно:
+- «nik_viden» — видно ли на кадре ник или имя аккаунта;
+- «data_vidna» — видно ли дату или период, за который показана статистика.
+Заказчик просит кадр целиком, с ником и датой: без них непонятно, чья это
+статистика и за когда.
 
 Как отвечать:
 - Числа — целыми, без пробелов и сокращений. «6,3 тыс.» это 6300, «1,2 млн» это
@@ -58,6 +68,8 @@ YouTube, Telegram) и достаёшь оттуда цифры.
 - «zamechaniya» — короткие фразы по-русски для модератора-человека о том, что
   смутило: «охват за 7 дней, а не за 30», «скрин обрезан», «цифра подписчиков
   закрыта пальцем», «это профиль, а не статистика». Всё чисто — пустой список.
+  Про ник и дату здесь не пиши: для них есть отдельные поля выше, иначе одно и
+  то же скажется дважды.
 - «eto_statistika» — false, если на картинке вообще не статистика соцсети:
   случайное фото, переписка, картинка из интернета.
 
@@ -70,7 +82,10 @@ SHEMA: dict[str, Any] = {
         "set": {"type": ["string", "null"]},
         "podpischiki": {"type": ["integer", "null"]},
         "ohvat": {"type": ["integer", "null"]},
+        "pokazy": {"type": ["integer", "null"]},
         "period_ohvata": {"type": ["string", "null"]},
+        "nik_viden": {"type": "boolean"},
+        "data_vidna": {"type": "boolean"},
         "tochnost": {"type": "number"},
         "zamechaniya": {"type": "array", "items": {"type": "string"}},
     },
@@ -79,7 +94,10 @@ SHEMA: dict[str, Any] = {
         "set",
         "podpischiki",
         "ohvat",
+        "pokazy",
         "period_ohvata",
+        "nik_viden",
+        "data_vidna",
         "tochnost",
         "zamechaniya",
     ],
@@ -117,6 +135,7 @@ def _chislo(znachenie: Any) -> int | None:
 def _otchet(
     podpischiki: int | None,
     ohvat: int | None,
+    pokazy: int | None,
     set_: str | None,
     period: str | None,
     tochnost: float,
@@ -125,6 +144,7 @@ def _otchet(
     return {
         "podpischiki": podpischiki,
         "ohvat": ohvat,
+        "pokazy": pokazy,
         "set": set_,
         "period": period,
         "tochnost": tochnost,
@@ -204,16 +224,31 @@ async def prochitat(bayty: bytes, tip: str) -> dict[str, Any] | None:
     if not syroy.get("eto_statistika", True):
         # Не статистика — цифрам с такой картинки веры нет никакой.
         return _otchet(
-            None, None, None, None, 0.0, ["Это не похоже на скрин статистики"] + zamechaniya
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            ["Это не похоже на скрин статистики"] + zamechaniya,
         )
+
+    # Требование спеки к кадру: целиком, с ником и датой. Не выполнено —
+    # говорим об этом модератору его словами, а не молчим.
+    pretenzii_k_kadru = []
+    if not syroy.get("nik_viden", True):
+        pretenzii_k_kadru.append("На кадре не видно ника — чья это статистика, неясно")
+    if not syroy.get("data_vidna", True):
+        pretenzii_k_kadru.append("На кадре нет даты или периода")
 
     return _otchet(
         _chislo(syroy.get("podpischiki")),
         _chislo(syroy.get("ohvat")),
+        _chislo(syroy.get("pokazy")),
         str(syroy["set"])[:40] if syroy.get("set") else None,
         str(syroy["period_ohvata"])[:40] if syroy.get("period_ohvata") else None,
         tochnost,
-        zamechaniya,
+        (pretenzii_k_kadru + zamechaniya)[:8],
     )
 
 

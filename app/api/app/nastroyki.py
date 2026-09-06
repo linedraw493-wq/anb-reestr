@@ -56,6 +56,10 @@ USILIE_CHTENIYA = os.environ.get("USILIE_CHTENIYA", "low")
 # считается совпадением. Статистика живая, за сутки шевелится сама.
 RASHOZHDENIE_DOLYA = float(os.environ.get("RASHOZHDENIE_DOLYA", "0.05"))
 
+# Ниже этой уверенности чтение считается сомнительным: спека, день 4 —
+# «нечитаемый или сомнительный скрин уходит администратору на ручную сверку».
+POROG_TOCHNOSTI = float(os.environ.get("POROG_TOCHNOSTI", "0.5"))
+
 # На бою cookie только по https. Локально по http её иначе не поставить.
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") != "0"
 

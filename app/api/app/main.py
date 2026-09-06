@@ -212,6 +212,7 @@ def _proverka_slovarem(
     return {
         "followers": str(otchet["podpischiki"]) if otchet.get("podpischiki") else None,
         "reach": str(otchet["ohvat"]) if otchet.get("ohvat") else None,
+        "pokazy": str(otchet["pokazy"]) if otchet.get("pokazy") else None,
         "tochnost": otchet.get("tochnost") or 0.0,
         "sovpalo": soshlos,
         "zamechaniya": zamechaniya,
@@ -229,6 +230,40 @@ def _otchet_skrina(skrin: asyncpg.Record | None) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             return None
     return syroy if isinstance(syroy, dict) else None
+
+
+async def _spornyy_skrin(
+    conn: asyncpg.Connection, kid: int, podpischiki: Any, ohvat: Any
+) -> str | None:
+    """Есть ли причина показать карточку модератору, даже если модерация выключена.
+
+    Спека, день 4: «нечитаемый или сомнительный скрин уходит администратору
+    на ручную сверку». Раньше этого не было: при выключенной модерации
+    карточка ехала в каталог, что бы модель ни сказала.
+
+    Возвращает причину словами или None. Скрина нет — не наше дело, цифры
+    со слов и помечены как со слов. Чтение выключено вовсе — тоже: судить
+    о «нечитаемом» тогда некому, и старый порядок не ломаем.
+    """
+    if not chtenie.vklyucheno():
+        return None
+    skrin = await conn.fetchrow(
+        "select otchet_ii from skriny where kartochka_id = $1"
+        " order by zagruzhen_v desc limit 1",
+        kid,
+    )
+    if skrin is None:
+        return None
+    otchet = _otchet_skrina(skrin)
+    if otchet is None:
+        return "скрин не прочитался"
+    if otchet.get("podpischiki") is None and otchet.get("ohvat") is None:
+        return "с картинки не прочитались цифры"
+    if (otchet.get("tochnost") or 0) < nastroyki.POROG_TOCHNOSTI:
+        return "скрин прочитался неуверенно"
+    if not chtenie.sovpalo(otchet, podpischiki, ohvat):
+        return "цифры в карточке расходятся со скрином"
+    return None
 
 
 def _sobrat_kartu(
@@ -836,7 +871,12 @@ async def sohranit_kartochku(request: Request):
                     podpischiki,
                     ohvat,
                 )
-                if stalo_inache and not nastroyki.MODERATSIYA:
+                sporno = (
+                    await _spornyy_skrin(conn, kid, podpischiki, ohvat)
+                    if stalo_inache
+                    else None
+                )
+                if stalo_inache and not nastroyki.MODERATSIYA and sporno is None:
                     # без проверки новые цифры встают сразу
                     await conn.execute(
                         "update kartochki set podpischiki=$2, ohvat=$3, istochnik=$4"
@@ -874,7 +914,12 @@ async def sohranit_kartochku(request: Request):
                 return {"ok": True, "status": "published", "cifryNaProverke": False}
 
             # Модерация выключена — карточка идёт в каталог сразу (спека).
-            novyy = "moderation" if nastroyki.MODERATSIYA else "published"
+            # Но спорный скрин уходит модератору всегда: это тоже спека,
+            # день 4, «нечитаемый или сомнительный скрин — на ручную сверку».
+            sporno = await _spornyy_skrin(conn, kid, podpischiki, ohvat)
+            novyy = "moderation" if (nastroyki.MODERATSIYA or sporno) else "published"
+            if sporno:
+                log.info("карточка %s на проверку: %s", kid, sporno)
             await conn.execute(
                 """
                 update kartochki set
