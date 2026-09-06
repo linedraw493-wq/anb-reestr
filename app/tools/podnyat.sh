@@ -39,6 +39,8 @@ export ADMIN_TELEFONY="$(znach ADMIN_TELEFONY)"
 export ADMIN_LOGIN="$(znach ADMIN_LOGIN)"
 export ADMIN_PAROL="$(znach ADMIN_PAROL)"
 export ANTHROPIC_API_KEY="$(znach ANTHROPIC_API_KEY)"
+export MOBIZON_API_KEY="$(znach MOBIZON_API_KEY)"
+export MOBIZON_PODPIS="$(znach MOBIZON_PODPIS)"
 export COOKIE_SECURE=0
 ( cd "$KOREN/api" && ./.venv/Scripts/python.exe -m uvicorn app.main:app \
     --host 127.0.0.1 --port 8000 --log-level info > "$SCRATCH/api.log" 2>&1 & )

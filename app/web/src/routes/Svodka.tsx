@@ -23,6 +23,10 @@ type Dannye = {
   za_nedelyu: number
   prosmotry: number
   voronka: Shag[]
+  /** чем сейчас уходят коды входа: настоящей SMS или в чат владельца */
+  kanalKodov?: 'sms' | 'telegram'
+  /** остаток денег у оператора SMS, тенге. null — не спросили или не SMS */
+  smsOstatok?: number | null
 }
 
 export default function Svodka() {
@@ -79,8 +83,8 @@ export default function Svodka() {
         <div className="wordmark">Ассоциация блогеров · сводка</div>
         <h1>Как идёт наполнение</h1>
         <p className="sub">
-          Воронка показывает, на каком шаге теряются люди. Проседает «открыли» — плохая
-          рассылка. «Подтвердили» — не доходят коды. «Заполнили» — форма пугает.
+          Воронка показывает, на каком шаге теряются люди. Проседает «открыли» — плохая рассылка.
+          «Подтвердили» — не доходят коды. «Заполнили» — форма пугает.
         </p>
       </header>
 
@@ -95,6 +99,30 @@ export default function Svodka() {
         <Plitka v={d.otkryli} k="открыли ссылку" d={`из ${d.vsego_ssylok}`} />
         <Plitka v={d.prosmotry} k="просмотров карточек" d="всего" />
       </div>
+
+      {/* Коды входа — самое хрупкое место всей цепочки: кончились деньги
+          у оператора, и регистрация встаёт молча. Пусть это будет видно
+          раньше, чем блогеры начнут жаловаться. */}
+      <section className={`block kanal-blok${d.kanalKodov === 'telegram' ? ' trevoga' : ''}`}>
+        <h2>Коды входа</h2>
+        {d.kanalKodov === 'sms' ? (
+          <p className="sub">
+            Уходят настоящей SMS на номер блогера.
+            {typeof d.smsOstatok === 'number' && (
+              <>
+                {' '}
+                На счету у оператора <b>{Math.round(d.smsOstatok)} ₸</b> — это примерно{' '}
+                {Math.floor(d.smsOstatok / 17)} сообщений. Кончатся — коды перестанут приходить.
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="sub">
+            Сейчас коды падают в один телеграм-чат, а не блогеру на телефон. Это временно: пока так,
+            звать блогеров нельзя — чужой код придёт не тому.
+          </p>
+        )}
+      </section>
 
       <section className="block voronka-blok">
         <h2>Воронка</h2>
@@ -112,7 +140,9 @@ export default function Svodka() {
           ))}
         </div>
         {d.otkloneno > 0 && (
-          <p className="fine">Отклонено карточек: {d.otkloneno}. Люди могут поправить и подать снова.</p>
+          <p className="fine">
+            Отклонено карточек: {d.otkloneno}. Люди могут поправить и подать снова.
+          </p>
         )}
       </section>
 
@@ -128,17 +158,7 @@ export default function Svodka() {
   )
 }
 
-function Plitka({
-  v,
-  k,
-  d,
-  trevoga,
-}: {
-  v: number
-  k: string
-  d: string
-  trevoga?: boolean
-}) {
+function Plitka({ v, k, d, trevoga }: { v: number; k: string; d: string; trevoga?: boolean }) {
   return (
     <div className="kp">
       <div className="v">{v}</div>

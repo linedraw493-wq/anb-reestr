@@ -45,8 +45,8 @@ export default function Invite() {
       <Shell>
         <h1>Ссылка недействительна</h1>
         <p className="sub">
-          Приглашение просрочено или им уже воспользовались. Напишите администратору
-          Ассоциации — он пришлёт новое.
+          Приглашение просрочено или им уже воспользовались. Напишите администратору Ассоциации — он
+          пришлёт новое.
         </p>
         <button className="btn ghost" onClick={() => navigate('/vhod')}>
           Я уже регистрировался
@@ -73,8 +73,12 @@ export default function Invite() {
       else if (res.reason === 'need-phone') {
         setEditing(true)
         setError('Впишите свой номер — на него придёт код.')
-      } else if (res.reason === 'bad-phone')
-        setError('Проверьте номер — такой не подходит.')
+      } else if (res.reason === 'bad-phone') setError('Проверьте номер — такой не подходит.')
+      else if (res.reason === 'no-delivery')
+        setError(
+          'Номер верный, но код до него не дошёл. Напишите в Ассоциацию блогеров — ' +
+            'вам продиктуют код для входа.',
+        )
       else if (res.reason === 'too-often')
         setError(`Код уже отправлен. Следующий можно запросить через ${res.retryAfter} сек.`)
       else setError('Не получилось отправить код. Попробуйте ещё раз.')
@@ -95,7 +99,9 @@ export default function Invite() {
         </div>
         <div>
           <div className="nm">{invite.nick}</div>
-          <div className="mt">{invite.invitedAt ? `Приглашение от ${invite.invitedAt}` : 'Личное приглашение'}</div>
+          <div className="mt">
+            {invite.invitedAt ? `Приглашение от ${invite.invitedAt}` : 'Личное приглашение'}
+          </div>
         </div>
       </div>
 
@@ -134,15 +140,15 @@ export default function Invite() {
       <label className="consent">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span>
-          Согласен на обработку номера телефона. Наружу он не публикуется — только если сам
-          укажу его в карточке.
+          Согласен на обработку номера телефона. Наружу он не публикуется — только если сам укажу
+          его в карточке.
         </span>
       </label>
 
       {zanyat && (
         <Err>
-          Этот номер уже привязан к другой карточке. Если она ваша — просто войдите по
-          номеру, приглашение для этого не нужно.
+          Этот номер уже привязан к другой карточке. Если она ваша — просто войдите по номеру,
+          приглашение для этого не нужно.
         </Err>
       )}
       {zanyat && (

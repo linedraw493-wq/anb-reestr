@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 import asyncpg
 from fastapi import Request
 
-from . import baza, nastroyki, telegram
+from . import baza, nastroyki, sms, telegram
 
 COOKIE = "sessiya"
 
@@ -53,6 +53,38 @@ def normalizovat_telefon(syroy: str) -> str | None:
 # ------------------------------------------------------------------- коды
 
 
+def kanal() -> str:
+    """Чем сейчас шлём коды: 'sms' или 'telegram'.
+
+    Настройка `KANAL_KODOV` по умолчанию 'auto': есть ключ Mobizon — шлём
+    SMS, нет — работает старый путь через Telegram. Так стенд без ключа
+    ничего не замечает, а бой переходит на SMS ровно тогда, когда ключ
+    появляется в настройках, без правки кода и без перевыката.
+    """
+    vybor = nastroyki.KANAL_KODOV
+    if vybor == "auto":
+        return "sms" if sms.vklyucheno() else "telegram"
+    return vybor
+
+
+async def poslat(kod: str, telefon: str | None, metka: str = "") -> bool:
+    """Отдать код человеку. True — канал взял сообщение.
+
+    Запасного пути нарочно нет. Раньше «не вышло» означало «не дошло до
+    чата владельца», и подстраховка была не нужна. Теперь SMS может не уйти
+    по-настоящему — например абоненту Beeline с общей подписи, — и
+    свалиться обратно в телеграм-чат владельца было бы худшим из решений:
+    код чужого человека ушёл бы не тому. Не вышло — говорим честно, а
+    админ выдаёт резервный код из админки.
+    """
+    if kanal() == "sms":
+        if not telefon:
+            # Заготовка из таблицы заказчика без номера: слать некуда.
+            return False
+        return await sms.poslat_kod(kod, telefon)
+    return await telegram.poslat_kod(kod, maska(telefon) or metka or "вход")
+
+
 async def vydat_kod(
     conn: asyncpg.Connection, chelovek_id: int, telefon: str | None, metka: str = ""
 ) -> str | None:
@@ -71,7 +103,7 @@ async def vydat_kod(
             return f"too-often:{int(nastroyki.POVTOR_CHEREZ_SEK - proshlo)}"
 
     kod = f"{secrets.randbelow(1_000_000):06d}"
-    if not await telegram.poslat_kod(kod, maska(telefon) or metka or "вход"):
+    if not await poslat(kod, telefon, metka):
         return "no-delivery"
 
     # старые коды этого человека гасим: живым остаётся один

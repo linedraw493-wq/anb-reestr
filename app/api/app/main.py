@@ -21,7 +21,7 @@ from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
-from . import baza, chtenie, nastroyki, vhod
+from . import baza, chtenie, nastroyki, sms, vhod
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 # httpx пишет в лог полный адрес запроса, а в нём токен бота. Приглушаем.
@@ -67,6 +67,14 @@ async def zhizn(_: FastAPI):
         # Оставлен словом владельца 06.09.2026 — клиенту он нужен, пока нет
         # SMS-оператора. Пароль живёт только в настройках окружения.
         log.info("вход в админку по логину включён (логин %r)", nastroyki.ADMIN_LOGIN)
+    if vhod.kanal() == "sms":
+        log.info(
+            "коды идут настоящей SMS через Mobizon, подпись %s",
+            nastroyki.MOBIZON_PODPIS or "общая (без Beeline)",
+        )
+    else:
+        # Пока так — сайт нельзя отдавать блогерам: чужой код придёт не тому.
+        log.warning("коды идут в один телеграм-чат владельца — это затычка, не бой")
     if chtenie.vklyucheno():
         log.info("чтение скрина включено, модель %s", nastroyki.MODEL_CHTENIYA)
     else:
@@ -416,7 +424,12 @@ async def vhod_start(request: Request):
     if beda and beda.startswith("too-often:"):
         return {"ok": False, "reason": "too-often", "retryAfter": int(beda.split(":")[1])}
     if beda == "no-delivery":
-        return {"ok": False, "reason": "bad-phone"}
+        # Раньше отвечали «bad-phone», и человек читал «неверный номер» —
+        # хотя номер верный, а не ушла SMS. С настоящим оператором это
+        # встречается по-настоящему (например абонент Beeline, пока у нас
+        # общая подпись), и врать про его номер нельзя: он будет чинить не
+        # то. Отвечаем как есть, экран зовёт за резервным кодом.
+        return {"ok": False, "reason": "no-delivery"}
 
     return {
         "ok": True,
@@ -1517,6 +1530,12 @@ async def svodka(request: Request):
 
     def dolya(n: int) -> int:
         return round(n * 100 / vsego)
+
+    # Чем шлём коды и сколько денег осталось у оператора. Деньги кончаются
+    # молча и выглядят точно как поломка — пусть админ видит цифру заранее,
+    # а не разбирается посреди регистрации блогеров.
+    d["kanalKodov"] = vhod.kanal()
+    d["smsOstatok"] = await sms.ostatok()
 
     d["voronka"] = [
         {"chto": "Разослано ссылок", "skolko": d["vsego_ssylok"], "dolya": 100},

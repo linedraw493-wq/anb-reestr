@@ -21,6 +21,8 @@ export type StartResult =
   /** номер уже привязан к другой записи — склеивать нельзя, надо просто войти */
   | { ok: false; reason: 'phone-taken' }
   | { ok: false; reason: 'too-often'; retryAfter: number }
+  /** номер верный, а SMS не ушла: у оператора не приняли или кончились деньги */
+  | { ok: false; reason: 'no-delivery' }
   | { ok: false; reason: 'dead-invite' }
 
 /** «Проверь код». Ключ — тот же, с каким начинали: ссылка или номер. */
