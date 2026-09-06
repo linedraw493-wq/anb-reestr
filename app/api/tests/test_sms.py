@@ -138,3 +138,35 @@ async def test_zagotovka_bez_nomera_sms_ne_poluchit(monkeypatch):
     monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "klyuch-dlya-proverki")
     monkeypatch.setattr(nastroyki, "KANAL_KODOV", "auto")
     assert await vhod.poslat("123456", None, "метка") is False
+
+
+# ------------------------------------------------- подсказка про Beeline
+
+
+def test_beeline_uznayotsya_po_kodu(monkeypatch):
+    """Слово владельца 06.09.2026: «пока без билайна». Значит админ должен
+    видеть таких людей заранее, а не узнавать из жалобы."""
+    monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "klyuch-dlya-proverki")
+    monkeypatch.setattr(nastroyki, "MOBIZON_PODPIS", "")
+    for nomer in ("+77051234567", "+77711234567", "+77761234567", "+77771234567"):
+        assert sms.pohozhe_beeline(nomer) is True, nomer
+
+
+def test_kcell_i_tele2_ne_beeline(monkeypatch):
+    monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "klyuch-dlya-proverki")
+    monkeypatch.setattr(nastroyki, "MOBIZON_PODPIS", "")
+    for nomer in ("+77011234567", "+77021234567", "+77751234567", "+77781234567",
+                  "+77071234567", "+77471234567"):
+        assert sms.pohozhe_beeline(nomer) is False, nomer
+
+
+def test_so_svoey_podpisyu_podskazka_gasnet(monkeypatch):
+    """Появилась своя подпись — Beeline доступен, пугать админа больше нечем."""
+    monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "klyuch-dlya-proverki")
+    monkeypatch.setattr(nastroyki, "MOBIZON_PODPIS", "ANB")
+    assert sms.pohozhe_beeline("+77051234567") is False
+
+
+def test_bez_sms_podskazka_ne_nuzhna(monkeypatch):
+    monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "")
+    assert sms.pohozhe_beeline("+77051234567") is False

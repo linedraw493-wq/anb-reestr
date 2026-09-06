@@ -21,6 +21,8 @@ type Stroka = {
   nik: string
   telefon: string
   estTelefon: boolean
+  /** номер похож на Beeline — SMS туда пока не доходит, нужен резервный код */
+  beeline?: boolean
   ssylka: string | null
   sostoyanie: Sostoyanie
   godnoDo: string | null
@@ -340,6 +342,11 @@ export default function Priglasheniya() {
           <li key={s.chelovekId}>
             <span className="prig-nik">{s.nik || 'без ника'}</span>
             <span className={`pill ${VID[s.sostoyanie]}`}>{NAZVANIE[s.sostoyanie]}</span>
+            {s.beeline && (
+              <span className="pill say" title="Beeline: SMS туда пока не доходит">
+                нужен резервный код
+              </span>
+            )}
             {s.estTelefon && <span className="prig-tel">{s.telefon}</span>}
             <span className="prig-knopki">
               {s.ssylka && (

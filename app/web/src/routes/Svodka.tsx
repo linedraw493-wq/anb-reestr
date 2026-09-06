@@ -27,6 +27,8 @@ type Dannye = {
   kanalKodov?: 'sms' | 'telegram'
   /** остаток денег у оператора SMS, тенге. null — не спросили или не SMS */
   smsOstatok?: number | null
+  /** сколько блогеров на Beeline — им код по SMS сейчас не доходит */
+  beelineSkolko?: number
 }
 
 export default function Svodka() {
@@ -123,8 +125,14 @@ export default function Svodka() {
                   : ' Кончатся — коды перестанут приходить.'}
               </>
             )}{' '}
-            На номера Beeline (705, 771, 776, 777) код пока не доходит — таким людям выдавайте
-            резервный код на экране «Приглашения».
+            На номера Beeline код пока не доходит
+            {typeof d.beelineSkolko === 'number' && d.beelineSkolko > 0 && (
+              <>
+                {' '}
+                — это <b>{d.beelineSkolko}</b> из ваших блогеров
+              </>
+            )}
+            . Им выдавайте резервный код на экране «Приглашения», они там отмечены.
           </p>
         ) : (
           <p className="sub">

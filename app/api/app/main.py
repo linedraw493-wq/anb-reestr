@@ -1355,6 +1355,9 @@ async def priglasheniya_spisok(request: Request, poisk: str | None = None):
             "nik": r["nik"] or "",
             "telefon": vhod.maska(r["telefon"]),
             "estTelefon": bool(r["telefon"]),
+            # Подсказка админу: этому человеку SMS не дойдёт, ему сразу
+            # резервный код. Слово владельца 06.09.2026 — «пока без билайна».
+            "beeline": sms.pohozhe_beeline(r["telefon"]),
             "ssylka": ("/i/" + r["token"]) if r["token"] else None,
             "sostoyanie": sostoyanie(r),
             "godnoDo": r["godno_do"].strftime("%d.%m.%Y") if r["godno_do"] else None,
@@ -1535,6 +1538,14 @@ async def svodka(request: Request):
     # а не разбирается посреди регистрации блогеров.
     d["kanalKodov"] = vhod.kanal()
     d["smsOstatok"] = await sms.ostatok()
+    # Сколько человек в базе не получат код, пока нет своей подписи.
+    # Не догадка на глаз, а цифра: по ней и решают, пора ли за подписью.
+    async with baza.pul().acquire() as conn:
+        telefony = await conn.fetch(
+            "select telefon from lyudi where rol = 'blogger' and udalen_v is null"
+            " and telefon is not null"
+        )
+    d["beelineSkolko"] = sum(1 for t in telefony if sms.pohozhe_beeline(t["telefon"]))
 
     d["voronka"] = [
         {"chto": "Разослано ссылок", "skolko": d["vsego_ssylok"], "dolya": 100},

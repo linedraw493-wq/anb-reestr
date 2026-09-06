@@ -43,6 +43,29 @@ def vklyucheno() -> bool:
     return bool(nastroyki.MOBIZON_KLYUCH)
 
 
+# DEF-коды Beeline Казахстана. На общей подписи провайдера туда не доходит.
+BEELINE = ("705", "771", "776", "777")
+
+
+def pohozhe_beeline(telefon: str | None) -> bool:
+    """Похож ли номер на Beeline — по коду оператора.
+
+    Слово владельца 06.09.2026: «пока без билайна» — свою подпись не
+    регистрируем. Значит этим людям код не придёт, и админ должен видеть их
+    заранее, а не узнавать из жалобы.
+
+    Именно «похоже»: в Казахстане номер можно перенести к другому оператору
+    вместе с кодом. Поэтому по этому признаку мы ничего не запрещаем — он
+    только подсказка человеку в админке. Кто на самом деле не принял, знает
+    провайдер, и его отказ мы разбираем отдельно.
+    """
+    if not vklyucheno() or nastroyki.MOBIZON_PODPIS:
+        # Своя подпись есть — Beeline доступен, подсказка не нужна.
+        return False
+    cifry = "".join(ch for ch in str(telefon or "") if ch.isdigit())
+    return len(cifry) == 11 and cifry[1:4] in BEELINE
+
+
 def _nomer(telefon: str) -> str:
     """+7 701 000 00 00 → 77010000000. Mobizon ждёт цифры без плюса."""
     return "".join(ch for ch in telefon if ch.isdigit())
