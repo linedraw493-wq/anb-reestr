@@ -36,6 +36,10 @@ os.environ["ANTHROPIC_API_KEY"] = ""  # чтение скрина выключе
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
 os.environ["COOKIE_SECURE"] = "0"
 os.environ.setdefault("MODERATSIYA", "0")
+# Защита от перебора номеров считает попытки с одного адреса, а все проверки
+# идут с одного. Поднимаем порог, чтобы прогон не спотыкался о собственную
+# защиту; сама защита проверяется отдельно, в test_vhod.py.
+os.environ["POPYTOK_S_ADRESA_V_MINUTU"] = "1000"
 
 
 def _sol() -> str:

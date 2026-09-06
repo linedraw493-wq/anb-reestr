@@ -55,14 +55,12 @@ async def zhizn(_: FastAPI):
         # Соль подписывает коды и сессии. На бою она обязана быть своя и
         # тайная — иначе подпись знает любой, кто видел этот файл.
         log.warning("OTP_SECRET не задан — стоит запасная соль. Для боя задайте свою.")
-    if nastroyki.MASTER_KOD:
-        # Демо-вход: один код подходит любому. Для стенда с клиентом это и
-        # нужно; перед тем как звать блогеров — очистить MASTER_KOD.
-        log.warning(
-            "MASTER_KOD задан (%d знаков) — этот код пускает кого угодно. "
-            "Убрать перед боевым запуском.",
-            len(nastroyki.MASTER_KOD),
-        )
+    if nastroyki.MASTER_KOD and nastroyki.MASTER_KOD_TELEFONY.strip() == "*":
+        # Так можно только на своей машине: код подойдёт к любому кабинету.
+        log.warning("постоянный код включён ДЛЯ ВСЕХ номеров — это только для стенда")
+    elif nastroyki.MASTER_KOD and nastroyki.MASTER_KOD_TELEFONY.strip():
+        skolko = len([n for n in nastroyki.MASTER_KOD_TELEFONY.split(",") if n.strip()])
+        log.info("постоянный код входа действует для %d номер(ов)", skolko)
     if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
         # Оставлен словом владельца 06.09.2026 — клиенту он нужен, пока нет
         # SMS-оператора. Пароль живёт только в настройках окружения.

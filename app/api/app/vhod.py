@@ -53,6 +53,32 @@ def normalizovat_telefon(syroy: str) -> str | None:
 # ------------------------------------------------------------------- коды
 
 
+def master_kod_dlya(telefon: str | None) -> bool:
+    """Работает ли постоянный код для этого номера.
+
+    Раньше `MASTER_KOD` пускал кого угодно на любой номер, и это была дыра.
+    Теперь он именной: список номеров в `MASTER_KOD_TELEFONY`. Пустой список
+    — код не работает ни для кого; `*` — для всех (только для своей машины).
+
+    Номер сравнивается после приведения к единому виду: владелец пишет свой
+    и как `87052819342`, и как `+77052819342` — это один и тот же человек.
+    """
+    if not nastroyki.MASTER_KOD:
+        return False
+    spisok = nastroyki.MASTER_KOD_TELEFONY.strip()
+    if not spisok:
+        return False
+    if spisok == "*":
+        return True
+    if not telefon:
+        return False
+    nash = normalizovat_telefon(telefon)
+    for syroy in spisok.split(","):
+        if nash and normalizovat_telefon(syroy) == nash:
+            return True
+    return False
+
+
 def kanal() -> str:
     """Чем сейчас шлём коды: 'sms' или 'telegram'.
 
@@ -89,8 +115,9 @@ async def vydat_kod(
     conn: asyncpg.Connection, chelovek_id: int, telefon: str | None, metka: str = ""
 ) -> str | None:
     """Возвращает 'too-often:<сек>' | 'no-delivery' | None (всё хорошо)."""
-    if nastroyki.MASTER_KOD:
-        # Демо-режим: код не нужен — на входе подойдёт универсальный MASTER_KOD.
+    if master_kod_dlya(telefon):
+        # Для этого номера действует постоянный код — слать нечего и незачем
+        # тратить деньги на SMS. Для всех остальных дальше идёт обычный путь.
         return None
 
     poslednii = await conn.fetchrow(
@@ -122,8 +149,12 @@ async def vydat_kod(
 
 async def proverit_kod(conn: asyncpg.Connection, chelovek_id: int, kod: str) -> dict:
     """{'ok': True} | {'ok': False, 'reason': 'wrong'|'expired'|'locked', ...}"""
-    if nastroyki.MASTER_KOD and hmac.compare_digest(kod, nastroyki.MASTER_KOD):
-        # Демо-режим: универсальный код. Настоящего кода в базе может не быть.
+    # Постоянный код — только для своих номеров. Телефон берём из базы, а не
+    # из запроса: иначе постоянный код подошёл бы к чужому кабинету, стоило
+    # прислать вместе с ним номер владельца.
+    telefon = await conn.fetchval("select telefon from lyudi where id = $1", chelovek_id)
+    if master_kod_dlya(telefon) and hmac.compare_digest(kod, nastroyki.MASTER_KOD):
+        # Настоящего кода в базе при этом может и не быть — его не слали.
         return {"ok": True}
 
     zapis = await conn.fetchrow(

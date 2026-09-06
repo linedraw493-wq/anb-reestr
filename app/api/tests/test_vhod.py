@@ -92,3 +92,20 @@ async def test_gost_ne_vidit_svoyu_kartochku(klient):
     klient.cookies.clear()
     otvet = await klient.get("/api/card")
     assert otvet.json()["ok"] is False
+
+
+async def test_perebor_nomerov_ostanavlivaetsya(klient, baza_conn, monkeypatch):
+    """Защита от прощупывания базы: ответ «такого номера нет» сам по себе —
+    подсказка, и перебирать номера подряд нельзя."""
+    from app import main, nastroyki
+
+    monkeypatch.setattr(nastroyki, "POPYTOK_S_ADRESA_V_MINUTU", 3)
+    main._stuk.clear()
+
+    otvety = []
+    for i in range(5):
+        o = await klient.post("/api/auth/start", json={"phone": f"+7701000{i:04d}"})
+        otvety.append(o.json().get("reason"))
+    main._stuk.clear()
+
+    assert "too-often" in otvety

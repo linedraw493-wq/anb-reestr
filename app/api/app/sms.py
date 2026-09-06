@@ -83,8 +83,15 @@ async def poslat_kod(kod: str, telefon: str) -> bool:
     # в лог не пишем: код это секрет, номер это личные данные.
     if dannye.get("code") == 0:
         return True
+    # Причина лежит не в message (там общая фраза «неправильно введены
+    # данные»), а в data, по полям. Без неё разбираться невозможно: на
+    # номере Beeline провайдер отвечает «для данного направления отправка
+    # недоступна» — и это не поломка, а общая подпись без Beeline.
     log.warning(
-        "Mobizon отказал: code=%s message=%s", dannye.get("code"), dannye.get("message")
+        "Mobizon отказал: code=%s %s | %s",
+        dannye.get("code"),
+        dannye.get("message"),
+        dannye.get("data"),
     )
     return False
 
