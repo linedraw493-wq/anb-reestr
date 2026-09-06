@@ -278,14 +278,14 @@ export default function Card() {
               <div className="shot">
                 <img src={k.screenshot} alt="Загруженный скрин статистики" />
                 <div className="shot-txt">
-                  {scan === 'reading' && <p className="reading">Загружаем…</p>}
+                  {scan === 'reading' && <p className="reading">Читаем цифры со скрина…</p>}
                   {scan === 'done' && (
                     <p className="ok-txt">Готово — цифры ниже взяты отсюда. Можно поправить.</p>
                   )}
                   {scan === 'failed' && (
                     <p className="reading">
-                      Скрин сохранён. Впишите подписчиков и охват сами — читать их с
-                      картинки мы пока не научились.
+                      Скрин сохранён. Впишите подписчиков и охват сами — с этой картинки
+                      прочитать не вышло.
                     </p>
                   )}
                   <button className="btn small ghost" onClick={() => shotRef.current?.click()}>

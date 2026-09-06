@@ -553,28 +553,29 @@ function ProverkaBlok({ k }: { k: Karta }) {
   if (!p) {
     return (
       <div className="proverka none">
-        <span className="p-head">
-          Скрин ещё не проверяется
-          <span className="pill soon">скоро</span>
-        </span>
+        <span className="p-head">Скрин не прочитан</span>
         <p className="fine">
-          Здесь будет отчёт ИИ: что он прочитал со скрина и сходится ли это с тем, что
-          указал блогер. Пока сверяйте картинку глазами.
+          {k.screenshot
+            ? 'Цифры с этой картинки прочитать не вышло — сверьте глазами.'
+            : 'Блогер не приложил скрин статистики. Цифры в карточке — с его слов.'}
         </p>
       </div>
     )
   }
+  const uverenno = p.tochnost >= 0.5
   return (
     <div className={`proverka${p.sovpalo ? ' ok' : ' bad'}`}>
       <span className="p-head">
-        {p.sovpalo ? 'ИИ: цифры сходятся' : 'ИИ: цифры расходятся'}
-        <span className="pill say">точность {Math.round(p.tochnost * 100)}%</span>
-        <span className="pill soon">пример</span>
+        {p.sovpalo ? 'Со скрина: цифры сходятся' : 'Со скрина: цифры расходятся'}
+        <span className="pill say">
+          {uverenno ? 'уверенно' : 'неуверенно'} · {Math.round(p.tochnost * 100)}%
+        </span>
       </span>
-      <p className="fine">
-        Так это будет выглядеть, когда ИИ-проверку включат. Сейчас данные показаны для
-        примера.
-      </p>
+      {!uverenno && (
+        <p className="fine">
+          Читалось плохо — решайте по картинке, а не по этим цифрам.
+        </p>
+      )}
       <dl className="p-rows">
         <div>
           <dt>На скрине</dt>

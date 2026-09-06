@@ -7,6 +7,7 @@
 
 import hmac
 import io
+import json
 import logging
 import secrets
 import time
@@ -20,7 +21,7 @@ from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
-from . import baza, nastroyki, vhod
+from . import baza, chtenie, nastroyki, vhod
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 # httpx пишет в лог полный адрес запроса, а в нём токен бота. Приглушаем.
@@ -67,6 +68,10 @@ async def zhizn(_: FastAPI):
             "Вход по логину включён (логин %r) — сменить или очистить перед боем.",
             nastroyki.ADMIN_LOGIN,
         )
+    if chtenie.vklyucheno():
+        log.info("чтение скрина включено, модель %s", nastroyki.MODEL_CHTENIYA)
+    else:
+        log.info("чтение скрина выключено — нет ANTHROPIC_API_KEY, цифры вводит человек")
     log.info("база готова, владелец на месте")
     yield
     await baza.zakryt()
@@ -187,6 +192,45 @@ async def _karta_slovarem(conn: asyncpg.Connection, kartochka: asyncpg.Record) -
     return (await _karty_slovarem(conn, [kartochka]))[0]
 
 
+def _proverka_slovarem(
+    otchet: dict[str, Any] | None, podpischiki: Any, ohvat: Any
+) -> dict[str, Any] | None:
+    """Отчёт чтения в том виде, в каком его ждёт экран модератора.
+
+    `sovpalo` не хранится, а считается здесь: человек правит цифры и после
+    чтения, и записанное однажды «сошлось» на другой день врало бы.
+    """
+    if not otchet:
+        return None
+    zamechaniya = list(otchet.get("zamechaniya") or [])
+    if otchet.get("period"):
+        zamechaniya = [f"Охват на скрине за {otchet['period']}"] + zamechaniya
+    soshlos = chtenie.sovpalo(otchet, podpischiki, ohvat)
+    if not soshlos and not (podpischiki or ohvat):
+        # Не «разошлись», а сверять было не с чем: в карточке цифр ещё нет.
+        zamechaniya = ["В карточке цифр ещё нет — сверить не с чем"] + zamechaniya
+    return {
+        "followers": str(otchet["podpischiki"]) if otchet.get("podpischiki") else None,
+        "reach": str(otchet["ohvat"]) if otchet.get("ohvat") else None,
+        "tochnost": otchet.get("tochnost") or 0.0,
+        "sovpalo": soshlos,
+        "zamechaniya": zamechaniya,
+    }
+
+
+def _otchet_skrina(skrin: asyncpg.Record | None) -> dict[str, Any] | None:
+    """Достаём отчёт из базы. asyncpg отдаёт jsonb строкой — разбираем."""
+    if skrin is None or not skrin["otchet_ii"]:
+        return None
+    syroy = skrin["otchet_ii"]
+    if isinstance(syroy, str):
+        try:
+            syroy = json.loads(syroy)
+        except json.JSONDecodeError:
+            return None
+    return syroy if isinstance(syroy, dict) else None
+
+
 def _sobrat_kartu(
     kartochka: asyncpg.Record,
     tematiki: list[str],
@@ -203,7 +247,9 @@ def _sobrat_kartu(
         "followers": str(kartochka["podpischiki"] or ""),
         "reach": str(kartochka["ohvat"] or ""),
         "istochnik": kartochka["istochnik"],
-        "proverka": skrin["otchet_ii"] if skrin else None,
+        "proverka": _proverka_slovarem(
+            _otchet_skrina(skrin), kartochka["podpischiki"], kartochka["ohvat"]
+        ),
         "tematiki": tematiki,
         "gorod": kartochka["gorod"] or "",
         "rayon": kartochka["rayon"] or "",
@@ -511,11 +557,9 @@ def _uzhat(bayty: bytes) -> tuple[bytes, str] | None:
     return vyhod.getvalue(), "image/jpeg"
 
 
-async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -> int | None:
-    uzhato = _uzhat(bayty)
-    if uzhato is None:
-        return None
-    szhato, tip = uzhato
+async def _zapisat_kartinku(
+    conn: asyncpg.Connection, szhato: bytes, tip: str, vid: str
+) -> int:
     return await conn.fetchval(
         "insert into kartinki (vid, tip, bayty, razmer) values ($1,$2,$3,$4) returning id",
         vid,
@@ -523,6 +567,14 @@ async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -
         szhato,
         len(szhato),
     )
+
+
+async def _polozhit_kartinku(conn: asyncpg.Connection, bayty: bytes, vid: str) -> int | None:
+    uzhato = _uzhat(bayty)
+    if uzhato is None:
+        return None
+    szhato, tip = uzhato
+    return await _zapisat_kartinku(conn, szhato, tip, vid)
 
 
 @app.get("/api/kartinki/{kartinka_id}")
@@ -633,26 +685,61 @@ async def zagruzit_foto(request: Request, file: UploadFile = File(...)):
 
 @app.post("/api/card/screenshot")
 async def zagruzit_skrin(request: Request, file: UploadFile = File(...)):
-    """Кладём скрин. ИИ-чтение отложено словом владельца 02.09 — отчёт пуст."""
+    """Кладём скрин и пробуем прочитать с него цифры моделью.
+
+    Порядок важен. Сначала читаем — это секунды ожидания, — и только потом
+    берём соединение с базой: их всего горсть, держать одно всё время
+    запроса к модели нельзя.
+
+    Ответ `ok: false` значит «скрин сохранён, цифры впишите сами». Так
+    отвечаем всегда, когда чтение выключено или не вышло: загрузку скрина
+    неудачное чтение не ломает никогда.
+    """
     chelovek = await _tekushchiy(request)
     if chelovek is None:
         return _net_prav()
     bayty = await file.read()
     if len(bayty) > nastroyki.KARTINKA_MAX_BAYT:
         return {"ok": False}
+    uzhato = _uzhat(bayty)
+    if uzhato is None:
+        return {"ok": False, "reason": "not-image"}
+    szhato, tip = uzhato
+
+    otchet = await chtenie.prochitat(szhato, tip)
 
     async with baza.pul().acquire() as conn:
-        kid = await conn.fetchval(
-            "select id from kartochki where chelovek_id = $1", chelovek["id"]
+        kartochka = await conn.fetchrow(
+            "select id, podpischiki, ohvat from kartochki where chelovek_id = $1",
+            chelovek["id"],
         )
-        kartinka_id = await _polozhit_kartinku(conn, bayty, "skrin")
-        if kartinka_id is None:
-            return {"ok": False, "reason": "not-image"}
+        if kartochka is None:
+            # Карточки нет — например, зашли админским логином без телефона.
+            # Класть скрин некуда, но и падать незачем.
+            return {"ok": False, "reason": "no-card"}
+        kartinka_id = await _zapisat_kartinku(conn, szhato, tip, "skrin")
         await conn.execute(
-            "insert into skriny (kartochka_id, kartinka_id) values ($1, $2)", kid, kartinka_id
+            "insert into skriny (kartochka_id, kartinka_id, otchet_ii) values ($1, $2, $3)",
+            kartochka["id"],
+            kartinka_id,
+            json.dumps(otchet, ensure_ascii=False) if otchet else None,
         )
-    # ok:false — «сохранили, но цифры введите сами». Так и задумано, пока нет ИИ.
-    return {"ok": False, "url": f"/api/kartinki/{kartinka_id}"}
+
+    adres = f"/api/kartinki/{kartinka_id}"
+    if otchet is None or (otchet["podpischiki"] is None and otchet["ohvat"] is None):
+        # Прочитать не вышло — не беда: человек впишет руками, карточка
+        # честно останется «со слов».
+        return {"ok": False, "url": adres}
+
+    return {
+        "ok": True,
+        "url": adres,
+        "followers": str(otchet["podpischiki"] or ""),
+        "reach": str(otchet["ohvat"] or ""),
+        "proverka": _proverka_slovarem(
+            otchet, kartochka["podpischiki"], kartochka["ohvat"]
+        ),
+    }
 
 
 def _chislo(znachenie: Any) -> int | None:

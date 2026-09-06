@@ -45,6 +45,17 @@ LOGIN_ADMIN_IMYA = "Админ (вход по логину)"
 SOL_PO_UMOLCHANIYU = "razrabotka-ne-dlya-boya"
 SOL = os.environ.get("OTP_SECRET", SOL_PO_UMOLCHANIYU)
 
+# Чтение скрина статистики моделью Claude. Ключ дан владельцем 06.09.2026.
+# Пусто — чтение выключено, цифры вводит человек, всё работает как раньше.
+ANTHROPIC_KLYUCH = os.environ.get("ANTHROPIC_API_KEY", "")
+# Модель и глубина раздумий. Меняются настройкой, а не правкой кода: захочешь
+# дешевле и быстрее — поставь claude-sonnet-5, усилие оставь low.
+MODEL_CHTENIYA = os.environ.get("MODEL_CHTENIYA", "claude-opus-5")
+USILIE_CHTENIYA = os.environ.get("USILIE_CHTENIYA", "low")
+# Насколько цифра со скрина может разойтись с цифрой в карточке и это всё ещё
+# считается совпадением. Статистика живая, за сутки шевелится сама.
+RASHOZHDENIE_DOLYA = float(os.environ.get("RASHOZHDENIE_DOLYA", "0.05"))
+
 # На бою cookie только по https. Локально по http её иначе не поставить.
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") != "0"
 

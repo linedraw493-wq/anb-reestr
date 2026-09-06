@@ -4,3 +4,4 @@ asyncpg==0.30.0
 httpx==0.28.1
 python-multipart==0.0.20
 pillow==11.1.0
+anthropic==1.4.0
