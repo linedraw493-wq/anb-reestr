@@ -1,4 +1,4 @@
-import { korotko, razdelit, type Karta } from '../lib/card'
+import { initsialy, korotko, razdelit, ton, type Karta } from '../lib/card'
 import { razobratVse } from '../lib/seti'
 
 /** Карточка ровно в том виде, в каком её увидит рекламодатель в каталоге. */
@@ -13,8 +13,8 @@ export function Preview({ k }: { k: Karta }) {
         {k.photo ? (
           <img className="ava ava-img" src={k.photo} alt="" />
         ) : (
-          <span className="ava" aria-hidden="true">
-            {initials(k.nick)}
+          <span className="ava ton" style={ton(k.nick) as React.CSSProperties} aria-hidden="true">
+            {initsialy(k.nick)}
           </span>
         )}
         <span className="pv-txt">
@@ -63,11 +63,4 @@ export function Preview({ k }: { k: Karta }) {
       </div>
     </article>
   )
-}
-
-function initials(nick: string): string {
-  const clean = nick.replace(/^@/, '')
-  if (!clean) return '—'
-  const parts = clean.split(/[._-]/).filter(Boolean)
-  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
 }
