@@ -32,50 +32,17 @@ export default function App() {
 
       <Route path="/kartochka" element={<Card />} />
 
-      {/* Админка — свой адрес, слово владельца 07.09.2026: «сделай отдельную
-          ссылку на админку». Один вход в неё: `/admin`. Гостя `Adminka`
-          отправляет за кодом и возвращает обратно, блогеру говорит «сюда
-          нельзя». Права всё равно проверяет сервер, это только вежливость. */}
-      <Route
-        path="/admin"
-        element={
-          <Adminka>
-            <Moderator />
-          </Adminka>
-        }
-      />
-      <Route
-        path="/admin/spiski"
-        element={
-          <Adminka>
-            <SpiskiEkran />
-          </Adminka>
-        }
-      />
-      <Route
-        path="/admin/priglasheniya"
-        element={
-          <Adminka>
-            <Priglasheniya />
-          </Adminka>
-        }
-      />
-      <Route
-        path="/admin/svodka"
-        element={
-          <Adminka>
-            <Svodka />
-          </Adminka>
-        }
-      />
-      <Route
-        path="/admin/prava"
-        element={
-          <Adminka>
-            <Moderatory />
-          </Adminka>
-        }
-      />
+      {/* Админка — одно табло: колонка слева живёт постоянно, меняется
+          только содержимое справа. Слово владельца 07.09.2026: «функционал
+          должен быть в одном табло», «мув плавный и мягкий». Вход в неё —
+          `/admin`; гостя `Adminka` отправит за кодом и вернёт обратно. */}
+      <Route path="/admin" element={<Adminka />}>
+        <Route index element={<Moderator />} />
+        <Route path="priglasheniya" element={<Priglasheniya />} />
+        <Route path="prava" element={<Moderatory />} />
+        <Route path="spiski" element={<SpiskiEkran />} />
+        <Route path="svodka" element={<Svodka />} />
+      </Route>
 
       {/* Старые адреса админки живут ссылками в записях и закладках —
           уводим на новые, а не показываем «страница не найдена». */}

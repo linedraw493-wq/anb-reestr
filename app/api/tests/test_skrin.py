@@ -9,7 +9,7 @@ import json
 
 from app import chtenie, nastroyki
 
-from .conftest import otkryt_sessiyu, zavesti_cheloveka, zavesti_kartochku
+from .conftest import celaya_kartochka, otkryt_sessiyu, zavesti_cheloveka, zavesti_kartochku
 
 
 async def _polozhit_skrin(conn, kartochka_id: int, otchet: dict | None) -> None:
@@ -72,7 +72,7 @@ async def test_spornyy_skrin_uvodit_kartochku_na_proverku(klient, baza_conn, mon
     # в карточке 90 000, на скрине 12 500 — расхождение в семь раз
     otvet = await klient.post(
         "/api/card",
-        json={"nick": "@spornyy", "followers": "90000", "reach": "", "istochnik": "screen"},
+        json=celaya_kartochka(nick="@spornyy", followers="90000", istochnik="screen"),
     )
     assert otvet.json()["ok"] is True
     status = await baza_conn.fetchval("select status from kartochki where id = $1", kid)
@@ -90,7 +90,7 @@ async def test_chestnye_cifry_publikuyutsya_srazu(klient, baza_conn, monkeypatch
 
     otvet = await klient.post(
         "/api/card",
-        json={"nick": "@chestnyy", "followers": "12500", "reach": "", "istochnik": "screen"},
+        json=celaya_kartochka(nick="@chestnyy", followers="12500", reach="4300", istochnik="screen"),
     )
     assert otvet.json()["status"] == "published"
     klient.cookies.clear()
@@ -107,7 +107,7 @@ async def test_neuverennoe_chtenie_tozhe_spornoe(klient, baza_conn, monkeypatch)
 
     await klient.post(
         "/api/card",
-        json={"nick": "@razmyto", "followers": "12500", "reach": "", "istochnik": "screen"},
+        json=celaya_kartochka(nick="@razmyto", followers="12500", reach="4300", istochnik="screen"),
     )
     status = await baza_conn.fetchval("select status from kartochki where id = $1", kid)
     assert status == "moderation"
@@ -125,7 +125,7 @@ async def test_pri_vyklyuchennom_chtenii_vsyo_kak_ranshe(klient, baza_conn):
 
     await klient.post(
         "/api/card",
-        json={"nick": "@bez_klyucha", "followers": "90000", "reach": "", "istochnik": "words"},
+        json=celaya_kartochka(nick="@bez_klyucha", followers="90000", istochnik="words"),
     )
     status = await baza_conn.fetchval("select status from kartochki where id = $1", kid)
     assert status == "published"

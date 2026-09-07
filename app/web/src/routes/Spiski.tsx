@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
    Списки, из которых человек выбирает: тематики и города. Спека прямо
@@ -24,19 +23,38 @@ const VKLADKI: { key: Tip; label: string }[] = [
   { key: 'gorod', label: 'Города' },
 ]
 
+/* Города не правятся вовсе — слово владельца 07.09.2026: «вообще убери
+   возможность их редактирования, пускай списком висят и всё». Список
+   Казахстана готовый, 76 городов; за день ручной правки в нём успели
+   завестись «алматы» вторым городом, город «1» и брань. */
+const PRAVIM: Tip[] = ['tematika']
+
 /** Границы названия. Короче — это опечатка, длиннее — не влезет в фильтры. */
 const MIN_DLINA = 2
 const MAX_DLINA = 40
 
+/* Что считается названием, а что набором букв. Те же правила стоят на
+   сервере — экран можно обойти, сервер нет. Слово владельца 07.09.2026:
+   «сайт не должен давать создавать такие» (снимок тематики «фффффффф»). */
+const GLASNYE = /[аеёиоуыэюяәөұүіaeiouy]/i
+const TRI_PODRYAD = /(.)/
+const RAZRESHENO = /^[\p{L}\p{N} \-,.()&/]+$/u
+const BRAN =
+  /(хуй|хуе|хуё|пизд|ебан|ебат|ебал|бляд|муда|гандон|залуп|дроч|пидор|пидар|сука|хер|говн|жоп|срак)/i
+
 /** Что не так с названием. Пусто — всё хорошо. */
-function chtoNeTak(nazvanie: string, tip: Tip, est: Stroka[], krome?: number): string | null {
-  const chisto = nazvanie.trim()
-  const chto = tip === 'tematika' ? 'Тематика' : 'Город'
-  if (chisto.length < MIN_DLINA)
-    return `${chto}: слишком коротко, нужно хотя бы ${MIN_DLINA} буквы.`
+function chtoNeTak(nazvanie: string, est: Stroka[], krome?: number): string | null {
+  const chisto = nazvanie.trim().replace(/\s+/g, ' ')
+  if (chisto.length < MIN_DLINA) return `Слишком коротко: нужно хотя бы ${MIN_DLINA} буквы.`
   if (chisto.length > MAX_DLINA)
-    return `${chto}: слишком длинно — не больше ${MAX_DLINA} символов, иначе не влезет в фильтры.`
-  if (!/[\p{L}]/u.test(chisto)) return `${chto}: в названии должны быть буквы.`
+    return `Слишком длинно — не больше ${MAX_DLINA} символов, иначе не влезет в фильтры.`
+  if (!RAZRESHENO.test(chisto)) return 'Лишние знаки: только буквы, цифры и пробел.'
+  const bukvy = chisto.toLowerCase().replace(/[^\p{L}]/gu, '')
+  if (bukvy.length < 2) return 'В названии должны быть буквы.'
+  if (!GLASNYE.test(bukvy)) return 'Это не похоже на слово: в нём нет ни одной гласной.'
+  if (new Set(bukvy).size < 3 && chisto.length > 3) return 'Это не похоже на слово.'
+  if (TRI_PODRYAD.test(chisto.toLowerCase())) return 'Три одинаковые буквы подряд — так не бывает.'
+  if (BRAN.test(bukvy)) return 'Такое в реестре не заводим.'
   const zanyato = est.some(
     (s) => s.id !== krome && s.nazvanie.trim().toLowerCase() === chisto.toLowerCase(),
   )
@@ -102,7 +120,6 @@ export default function SpiskiEkran() {
   if (netPrav) {
     return (
       <div className="form-page narrow">
-        <Shapka />
         <header className="form-head">
           <h1>Сюда нельзя</h1>
           <p className="sub">Списки правит администратор Ассоциации.</p>
@@ -123,10 +140,11 @@ export default function SpiskiEkran() {
   }
 
   const stroki = vkladka === 'tematika' ? dannye.tematiki : dannye.goroda
+  const pravim = PRAVIM.includes(vkladka)
   const vidno = (s: Stroka) => (vkladka === 'tematika' ? s.vidna : s.vidno) !== false
 
   function dobavit() {
-    const oshibka = chtoNeTak(novoe, vkladka, stroki)
+    const oshibka = chtoNeTak(novoe, stroki)
     if (oshibka) {
       setBeda(oshibka)
       return
@@ -138,7 +156,6 @@ export default function SpiskiEkran() {
 
   return (
     <div className="form-page narrow">
-      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · списки</div>
         <h1>Списки для выбора</h1>
@@ -163,22 +180,29 @@ export default function SpiskiEkran() {
         ))}
       </div>
 
-      <div className="paste dobavlenie">
-        <input
-          className={`input${beda ? ' bad' : ''}`}
-          value={novoe}
-          maxLength={MAX_DLINA}
-          placeholder={vkladka === 'tematika' ? 'Новая тематика' : 'Новый город'}
-          onChange={(e) => {
-            setNovoe(e.target.value)
-            setBeda(null)
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && dobavit()}
-        />
-        <button className="btn small" disabled={!novoe.trim() || zanyat} onClick={dobavit}>
-          Добавить
-        </button>
-      </div>
+      {pravim ? (
+        <div className="paste dobavlenie">
+          <input
+            className={`input${beda ? ' bad' : ''}`}
+            value={novoe}
+            maxLength={MAX_DLINA}
+            placeholder="Новая тематика"
+            onChange={(e) => {
+              setNovoe(e.target.value)
+              setBeda(null)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && dobavit()}
+          />
+          <button className="btn small" disabled={!novoe.trim() || zanyat} onClick={dobavit}>
+            Добавить
+          </button>
+        </div>
+      ) : (
+        <p className="fine">
+          Список городов Казахстана готовый и не правится — ни здесь, ни на сервере. Нужен новый
+          город или правка — скажите нам.
+        </p>
+      )}
 
       {beda && (
         <div className="note err" role="alert">
@@ -192,40 +216,46 @@ export default function SpiskiEkran() {
       <ul className="spisok">
         {stroki.map((s) => (
           <li key={s.id} className={vidno(s) ? '' : 'skryta'}>
-            <input
-              className="input bare-name"
-              defaultValue={s.nazvanie}
-              maxLength={MAX_DLINA}
-              aria-label={`Название: ${s.nazvanie}`}
-              onBlur={(e) => {
-                const novoeImya = e.target.value.trim()
-                if (!novoeImya || novoeImya === s.nazvanie) {
-                  e.target.value = s.nazvanie
-                  return
-                }
-                const oshibka = chtoNeTak(novoeImya, vkladka, stroki, s.id)
-                if (oshibka) {
-                  setBeda(oshibka)
-                  e.target.value = s.nazvanie
-                  return
-                }
-                setBeda(null)
-                void pravka({ chto: 'pereimenovat', id: s.id, nazvanie: novoeImya })
-              }}
-            />
+            {pravim ? (
+              <input
+                className="input bare-name"
+                defaultValue={s.nazvanie}
+                maxLength={MAX_DLINA}
+                aria-label={`Название: ${s.nazvanie}`}
+                onBlur={(e) => {
+                  const novoeImya = e.target.value.trim()
+                  if (!novoeImya || novoeImya === s.nazvanie) {
+                    e.target.value = s.nazvanie
+                    return
+                  }
+                  const oshibka = chtoNeTak(novoeImya, stroki, s.id)
+                  if (oshibka) {
+                    setBeda(oshibka)
+                    e.target.value = s.nazvanie
+                    return
+                  }
+                  setBeda(null)
+                  void pravka({ chto: 'pereimenovat', id: s.id, nazvanie: novoeImya })
+                }}
+              />
+            ) : (
+              <span className="sp-imya">{s.nazvanie}</span>
+            )}
             <span className="sp-skolko" title="в скольких карточках стоит">
               {s.skolko}
             </span>
-            <button
-              className="linkbtn"
-              disabled={zanyat}
-              onClick={() => void pravka({ chto: 'skryt', id: s.id, vidno: !vidno(s) })}
-            >
-              {vidno(s) ? 'скрыть' : 'вернуть'}
-            </button>
+            {pravim && (
+              <button
+                className="linkbtn"
+                disabled={zanyat}
+                onClick={() => void pravka({ chto: 'skryt', id: s.id, vidno: !vidno(s) })}
+              >
+                {vidno(s) ? 'скрыть' : 'вернуть'}
+              </button>
+            )}
             {/* Удалить можно только пустую строку: занятую сервер не отдаст,
                 и правильно — иначе поедут чужие карточки. */}
-            {s.skolko === 0 && (
+            {pravim && s.skolko === 0 && (
               <button
                 className="linkbtn opasno"
                 disabled={zanyat}

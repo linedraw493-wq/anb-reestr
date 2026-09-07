@@ -139,3 +139,27 @@ async def zavesti_kartochku(
         ohvat,
         status,
     )
+
+
+def celaya_kartochka(**pravki) -> dict:
+    """Тело для POST /api/card — заполненное целиком.
+
+    Сервер с 07.09.2026 проверяет карточку целиком (слово владельца
+    «валидации поправь»): ник, имя, цифры, ссылка, тематика, город, язык.
+    Проверкам, которые говорят про что-то одно, остальное неинтересно —
+    берут отсюда и меняют нужное.
+    """
+    telo = {
+        "nick": "@proverka",
+        "fio": "Проверка Проверкина",
+        "followers": "12500",
+        "reach": "3000",
+        "istochnik": "words",
+        "ssylki": ["https://instagram.com/proverka"],
+        "tematiki": ["Красота"],
+        "gorod": "Алматы",
+        "yazyk": "Русский",
+        "stavka": "50000",
+    }
+    telo.update(pravki)
+    return telo

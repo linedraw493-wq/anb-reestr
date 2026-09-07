@@ -226,11 +226,19 @@ async def test_spiski_proveryayut_nazvanie(klient, baza_conn):
         ).json()
 
     assert (await dobavit("Я"))["reason"] == "bad-name"  # короче двух знаков
+    # Снимки владельца 07.09.2026: он завёл «фффффффф» и «Хуй на» и сказал
+    # «сайт не должен давать создавать такие».
+    assert (await dobavit("фффффффффффф"))["reason"] == "bad-name"  # ни одной гласной
+    assert (await dobavit("ЫЫЫ"))["reason"] == "bad-name"  # три одинаковые подряд
+    assert (await dobavit("аааа"))["reason"] == "bad-name"  # одна буква на всё слово
+    assert (await dobavit("Хуй на"))["reason"] == "bad-name"  # брань
+    assert (await dobavit("Красота 💅"))["reason"] == "bad-name"  # посторонние знаки
     assert (await dobavit("А" * 41))["reason"] == "bad-name"  # длиннее сорока
     assert (await dobavit("12345"))["reason"] == "bad-name"  # без единой буквы
     assert (await dobavit("   "))["reason"] == "bad-name"
 
     assert (await dobavit("Рыбалка"))["ok"] is True
+    assert (await dobavit("3D-графика"))["ok"] is True  # цифры и дефис — можно
     # тот же город другими буквами — это тот же город
     povtor = await dobavit("рыбалка")
     assert povtor["reason"] == "zanyato" and povtor["est"] == "Рыбалка"
@@ -280,4 +288,59 @@ async def test_pustuyu_stroku_spiska_mozhno_udalit(klient, baza_conn):
     )
     assert otkaz.json()["reason"] == "zanyato-kartochkami"
     assert await baza_conn.fetchval("select id from tematiki where id = $1", zanyataya) is not None
+    klient.cookies.clear()
+
+
+async def test_goroda_iz_adminki_ne_pravyatsya(klient, baza_conn):
+    """Слово владельца 07.09.2026: «вообще убери возможность их
+    редактирования, пускай списком висят и всё».
+
+    За день ручной правки в списке городов успели завестись «алматы»
+    вторым городом, город «1» и брань. Список Казахстана готовый — правит
+    его не человек в админке.
+    """
+    from .conftest import otkryt_sessiyu, zavesti_cheloveka
+
+    admin = await zavesti_cheloveka(baza_conn, "+77040000004", rol="admin")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, admin))
+
+    bylo = await baza_conn.fetchval("select count(*) from goroda")
+    for chto in ("dobavit", "pereimenovat", "skryt", "udalit"):
+        otvet = await klient.post(
+            "/api/moder/spisok",
+            json={"tip": "gorod", "chto": chto, "id": 1, "nazvanie": "Новоград"},
+        )
+        assert otvet.json() == {"ok": False, "reason": "bad-type"}, chto
+    assert await baza_conn.fetchval("select count(*) from goroda") == bylo
+    klient.cookies.clear()
+
+
+async def test_kartochku_s_musorom_server_ne_prinimaet(klient, baza_conn, monkeypatch):
+    """Слово владельца 07.09.2026: «валидации поправь».
+
+    Экран проверяет карточку, но экран можно обойти — сервер обязан
+    проверить то же самое сам, иначе в каталоге повиснет мусор.
+    """
+    from .conftest import celaya_kartochka, otkryt_sessiyu, zavesti_cheloveka
+
+    kto = await zavesti_cheloveka(baza_conn, "+77040000005")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, kto))
+
+    async def sohranit(**pravki):
+        return (await klient.post("/api/card", json=celaya_kartochka(**pravki))).json()
+
+    assert (await sohranit(nick="а б"))["pole"] == "nick"  # пробел в нике
+    assert (await sohranit(nick=""))["pole"] == "nick"
+    assert (await sohranit(fio="7"))["pole"] == "fio"
+    assert (await sohranit(followers=""))["pole"] == "followers"
+    assert (await sohranit(followers="999999999"))["pole"] == "followers"
+    assert (await sohranit(reach="0"))["pole"] == "reach"
+    assert (await sohranit(ssylki=[]))["pole"] == "ssylki"
+    assert (await sohranit(ssylki=["не ссылка"]))["pole"] == "ssylki"
+    assert (await sohranit(tematiki=[]))["pole"] == "tematiki"
+    assert (await sohranit(gorod=""))["pole"] == "gorod"
+    assert (await sohranit(yazyk="Эльфийский"))["pole"] == "yazyk"
+
+    # а целая карточка проходит
+    assert (await sohranit())["ok"] is True
     klient.cookies.clear()

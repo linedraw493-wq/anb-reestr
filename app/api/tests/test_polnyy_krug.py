@@ -121,6 +121,8 @@ async def test_polnyy_krug_ot_admina_do_katalog(klient, baza_conn, monkeypatch):
         "/api/card",
         json={
             "nick": nik,
+            # имя обязательно с 07.09.2026 — слово владельца
+            "fio": "Новая Блогерка",
             "followers": "12500",
             "reach": "4300",
             "istochnik": "words",

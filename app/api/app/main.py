@@ -7,6 +7,7 @@
 
 import io
 import json
+import re
 import logging
 import secrets
 import time
@@ -320,6 +321,9 @@ def _sobrat_kartu(
     }
 
 
+# Языки контента — короткий список, живёт в коде: заказчик его не правит.
+YAZYKI = ["Казахский", "Русский", "Оба"]
+
 KARTOCHKA_SELECT = """
     select k.*, g.nazvanie as gorod
     from kartochki k
@@ -362,7 +366,7 @@ async def spravochniki():
         "tematiki": temy,
         "goroda": goroda,
         "oblasti": [{"oblast": o, "goroda": g} for o, g in oblasti.items()],
-        "yazyki": ["Казахский", "Русский", "Оба"],
+        "yazyki": YAZYKI,
     }
 
 
@@ -789,6 +793,72 @@ def _chislo(znachenie: Any) -> int | None:
     return int(cifry) if cifry else None
 
 
+# ------------------------------------------------- проверка карточки
+#
+# Слово владельца 07.09.2026: «валидации поправь». До этого сервер принимал
+# карточку какой угодно: ник из пробелов, миллиард подписчиков, «ссылка» из
+# одного слова. Экран это ловил, но экран можно обойти — а карточка потом
+# висит в каталоге и врёт рекламодателю.
+#
+# Границы те же, что на экране. Меняются здесь и там одновременно.
+
+NIK_VID = re.compile(r"^@?[A-Za-z0-9._-]{2,40}$")
+MAX_LYUDEY = 50_000_000       # больше пятидесяти миллионов в Казахстане не бывает
+MAX_STAVKA = 100_000_000      # сто миллионов тенге за пост — это опечатка
+MAX_SSYLOK = 12
+
+
+def _proverit_kartochku(telo: dict, yazyki: list[str]) -> dict | None:
+    """Что не так с карточкой. None — всё в порядке.
+
+    Возвращает поле и человеческую причину: экран покажет её как есть.
+    """
+    def beda(pole: str, chto: str) -> dict:
+        return {"ok": False, "reason": "bad-field", "pole": pole, "chto": chto}
+
+    nik = str(telo.get("nick") or "").strip()
+    if not NIK_VID.match(nik):
+        return beda("nick", "Ник — от 2 до 40 знаков, латиницей, без пробелов.")
+
+    fio = " ".join(str(telo.get("fio") or "").split())
+    if not (2 <= len(fio) <= 120) or not any(ch.isalpha() for ch in fio):
+        return beda("fio", "Имя и фамилия — от 2 до 120 знаков, буквами.")
+
+    for pole, imya in (("followers", "Подписчики"), ("reach", "Охват")):
+        znachenie = _chislo(telo.get(pole))
+        if znachenie is None or not (1 <= znachenie <= MAX_LYUDEY):
+            return beda(pole, f"{imya}: число от 1 до 50 000 000.")
+
+    stavka = _chislo(telo.get("stavka"))
+    if stavka is not None and stavka > MAX_STAVKA:
+        return beda("stavka", "Ставка слишком большая — проверьте, не лишний ли ноль.")
+
+    ssylki = telo.get("ssylki") or []
+    if not isinstance(ssylki, list) or not ssylki:
+        return beda("ssylki", "Нужна хотя бы одна ссылка на профиль.")
+    if len(ssylki) > MAX_SSYLOK:
+        return beda("ssylki", f"Ссылок не больше {MAX_SSYLOK}.")
+    for adres in ssylki:
+        adres = str(adres or "").strip()
+        if not adres.startswith(("http://", "https://")) or len(adres.split("/")) < 4:
+            return beda("ssylki", "Ссылка должна быть целым адресом профиля, с https://.")
+
+    tematiki = telo.get("tematiki") or []
+    if not isinstance(tematiki, list) or not tematiki:
+        return beda("tematiki", "Выберите хотя бы одну тематику.")
+    if len(tematiki) > nastroyki.MAX_TEMATIK:
+        return beda("tematiki", f"Тематик не больше {nastroyki.MAX_TEMATIK}.")
+
+    if not str(telo.get("gorod") or "").strip():
+        return beda("gorod", "Выберите город.")
+
+    yazyk = str(telo.get("yazyk") or "").strip()
+    if yazyk not in yazyki:
+        return beda("yazyk", "Выберите язык из списка.")
+
+    return None
+
+
 @app.post("/api/card")
 async def sohranit_kartochku(request: Request):
     """Сохранение карточки.
@@ -802,11 +872,23 @@ async def sohranit_kartochku(request: Request):
         return _net_prav()
     telo = await request.json()
 
+    ne_tak = _proverit_kartochku(telo, YAZYKI)
+    if ne_tak:
+        return ne_tak
+
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
             kartochka = await conn.fetchrow(
                 "select id, status from kartochki where chelovek_id = $1", chelovek["id"]
             )
+            if kartochka is None:
+                # Обычно карточку заводит первый заход на экран (GET /api/card).
+                # Но приходить сюда первым запросом никто не запрещал, и до
+                # 07.09.2026 такой запрос ронял сервер с пятисоткой.
+                kartochka = await conn.fetchrow(
+                    "insert into kartochki (chelovek_id) values ($1) returning id, status",
+                    chelovek["id"],
+                )
             kid = kartochka["id"]
             opublikovana = kartochka["status"] == "published"
 
@@ -1613,25 +1695,67 @@ MIN_NAZVANIE = 2
 MAX_NAZVANIE = 40
 
 
-def _nazvanie_spiska(syroe: Any) -> str | None:
-    """Годное название списка или None.
+# Гласные трёх алфавитов, на которых тут пишут. Слово без единой гласной —
+# не слово, а «фффффф»: именно такую тематику владелец завёл 07.09.2026,
+# показал снимок и сказал «сайт не должен давать создавать такие».
+GLASNYE = set("аеёиоуыэюяәөұүіaeiouy")
 
-    Не годится: пусто, короче двух знаков, длиннее сорока, без единой буквы
-    (одни цифры и точки — это не тематика). Двойные пробелы внутри
-    схлопываем: «Еда  и   рестораны» и «Еда и рестораны» должны быть одной
-    строкой, а не двумя похожими.
+# Корни, которых в публичном каталоге быть не должно. Список короткий и
+# нарочно грубый: он ловит не всё, но снимает то, что набирают со скуки.
+# Слово владельца 07.09.2026 — снимок тематики «Хуй на» со словами «сайт не
+# должен давать создавать такие».
+BRAN = ("хуй", "хуе", "хуё", "пизд", "ебан", "ебат", "ебал", "еблан", "бляд",
+        "муда", "мудак", "гандон", "залуп", "дроч", "пидор", "пидар", "сука",
+        "хер", "говн", "жоп", "срак")
+# Три одинаковые буквы подряд: так набирают, а не называют.
+TRI_PODRYAD = re.compile(r"(.)\1\1")
+
+
+def _nazvanie_spiska(syroe: Any) -> str | None:
+    """Годное название списка или None. Причину не возвращаем — она одна на
+    все случаи и одинаково пишется на экране.
+
+    Не годится:
+
+    - пусто, короче двух знаков, длиннее сорока;
+    - без единой буквы («12345») и без единой гласной («фффф»);
+    - три одинаковые буквы подряд («аааа») — так набирают, а не называют;
+    - меньше трёх разных букв в названии длиннее четырёх знаков;
+    - посторонние знаки: решётки, звёздочки, эмодзи;
+    - брань — по короткому списку корней.
+
+    Двойные пробелы внутри схлопываются: «Еда  и   рестораны» и «Еда и
+    рестораны» — одна строка, а не две похожие.
     """
     nazvanie = " ".join(str(syroe or "").split())
     if not (MIN_NAZVANIE <= len(nazvanie) <= MAX_NAZVANIE):
         return None
-    if not any(ch.isalpha() for ch in nazvanie):
+
+    bukvy = [ch for ch in nazvanie.lower() if ch.isalpha()]
+    if len(bukvy) < 2:
+        return None
+    if not any(ch in GLASNYE for ch in bukvy):
+        return None
+    if len(set(bukvy)) < 3 and len(nazvanie) > 3:
+        return None
+    if TRI_PODRYAD.search(nazvanie.lower()):
+        return None
+    bez_probelov = "".join(bukvy)
+    if any(koren in bez_probelov for koren in BRAN):
+        return None
+    # Разрешаем буквы, цифры, пробел и немного знаков препинания.
+    if not all(ch.isalnum() or ch in " -,.()&/" for ch in nazvanie):
         return None
     return nazvanie
 
 
+# Править из админки можно только тематики. Города — готовый список
+# Казахстана, он не меняется: слово владельца 07.09.2026, «вообще убери
+# возможность их редактирования, пускай списком висят и всё». За день
+# ручной правки в списке успели появиться «алматы» вторым городом, город
+# «1» и брань — цена свободы оказалась выше пользы.
 _TABLICY = {
     "tematika": ("tematiki", "vidna"),
-    "gorod": ("goroda", "vidno"),
 }
 
 

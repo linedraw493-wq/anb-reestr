@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
    Дашборд заказчика. Не «красивые графики», а ответ на один вопрос:
@@ -58,7 +57,6 @@ export default function Svodka() {
   if (netPrav) {
     return (
       <div className="form-page narrow">
-        <Shapka />
         <header className="form-head">
           <h1>Сюда нельзя</h1>
           <p className="sub">Сводка — для администратора Ассоциации.</p>
@@ -83,7 +81,6 @@ export default function Svodka() {
 
   return (
     <div className="form-page">
-      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · сводка</div>
         <h1>Как идёт наполнение</h1>

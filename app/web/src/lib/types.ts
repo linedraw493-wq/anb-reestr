@@ -49,6 +49,8 @@ export type Flow = {
   phoneMasked: string
   /** чем придёт код — экран кода должен сказать правду */
   kanal?: Kanal
+  /** через сколько секунд можно просить код заново */
+  resendAfter?: number
   token?: string
   phone?: string
   /** куда вернуть после кода. Пусто — по общему правилу (каталог/карточка).

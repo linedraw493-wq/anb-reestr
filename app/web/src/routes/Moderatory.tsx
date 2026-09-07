@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi, NetDostupa, type Chelovek, type Rol } from '../lib/api'
-import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
    Кто в админке — слово владельца 07.09.2026: «сделай возможность назначать
@@ -79,7 +78,6 @@ export default function Moderatory() {
   if (netPrav) {
     return (
       <div className="form-page narrow">
-        <Shapka />
         <header className="form-head">
           <h1>Сюда нельзя</h1>
           <p className="sub">Права раздаёт администратор Ассоциации.</p>
@@ -101,7 +99,6 @@ export default function Moderatory() {
 
   return (
     <div className="form-page">
-      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · права</div>
         <h1>Права</h1>

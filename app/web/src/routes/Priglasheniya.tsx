@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatAsTyped, toE164 } from '../lib/phone'
-import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
    Выпуск инвайтов — спека, день 2–3 и день 5.
@@ -213,7 +212,6 @@ export default function Priglasheniya() {
   if (netPrav) {
     return (
       <div className="form-page narrow">
-        <Shapka />
         <header className="form-head">
           <h1>Сюда нельзя</h1>
           <p className="sub">Приглашения выдаёт администратор Ассоциации.</p>
@@ -235,7 +233,6 @@ export default function Priglasheniya() {
 
   return (
     <div className="form-page">
-      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · приглашения</div>
         <h1>Приглашения</h1>

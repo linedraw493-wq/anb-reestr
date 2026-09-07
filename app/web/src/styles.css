@@ -342,6 +342,23 @@ input {
   text-decoration: none;
 }
 
+/* Кому и чем ушёл код — строка над ячейками. Раньше это была подпись под
+   заголовком на отдельной странице; теперь вход в один экран, и строка
+   должна сама объяснять, что происходит. */
+.kod-komu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.kod-nomer {
+  font-family: var(--font-mono);
+  color: var(--ink);
+}
+
 /* -------------------------------------------------------------- ячейки кода */
 
 .code {
@@ -778,6 +795,164 @@ input {
 
 .form-head .sub {
   max-width: 62ch;
+}
+
+/* ------------------------------------------------------------- админка */
+
+/* Одно табло: колонка слева, содержимое справа. Слово владельца
+   07.09.2026 — «перенеси эту панель влево, как табло», «функционал должен
+   быть в одном табло», «мув плавный и мягкий». */
+.adm {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100dvh;
+}
+
+.adm-bok {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.adm-imya {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.adm-imya .znachok {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.adm-menyu {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.adm-menyu::-webkit-scrollbar {
+  display: none;
+}
+
+.adm-punkt {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.adm-punkt:hover {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.adm-punkt.on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.adm-punkt.tihiy {
+  color: var(--faint);
+}
+
+.adm-znak {
+  width: 18px;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.adm-niz {
+  display: flex;
+  gap: 4px;
+}
+
+/* Содержимое раздела. Мягко проявляется при переходе — меняется только
+   эта область, колонка слева остаётся на месте. */
+.adm-telo {
+  min-width: 0;
+  animation: adm-proyavilos 0.18s ease both;
+}
+
+@keyframes adm-proyavilos {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-telo {
+    animation: none;
+  }
+}
+
+/* Большой экран: колонка слева во всю высоту и прибита. */
+@media (min-width: 900px) {
+  .adm {
+    grid-template-columns: 236px minmax(0, 1fr);
+  }
+
+  .adm-bok {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    padding: 20px 14px;
+    border-right: 1px solid var(--line);
+    border-bottom: none;
+  }
+
+  .adm-menyu {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .adm-niz {
+    flex-direction: column;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Внутри табло страница уже не центрируется сама: её держит колонка. */
+  .adm-telo .form-page {
+    max-width: 1100px;
+    margin: 0;
+    padding: 28px 28px calc(48px + env(safe-area-inset-bottom));
+  }
 }
 
 /* ------------------------------------------------------- шапка каталога */
@@ -2434,6 +2609,12 @@ select.input[disabled] {
 .sp-gorod {
   font-size: 0.8125rem;
   color: var(--muted);
+}
+
+.sp-imya {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
 }
 
 .sp-skolko {

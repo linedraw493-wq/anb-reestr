@@ -17,7 +17,6 @@ import { razobratVse } from '../lib/seti'
 import { USE_FAKE } from '../lib/rezhim'
 import { MAX_TEMATIK, useSpravochniki } from '../lib/spravochniki'
 import { Preview } from '../ui/Preview'
-import { Shapka } from '../ui/Shapka'
 
 /* Порядок вкладок — по срочности: сначала то, где ждут решения. Названия
    те же, что видит блогер (`STATUS_NAZVANIE`), чтобы разговор про карточку
@@ -147,7 +146,6 @@ export default function Moderator() {
   if (beda) {
     return (
       <div className="form-page narrow">
-        <Shapka />
         <header className="form-head">
           <h1>{beda === 'net-prav' ? 'Сюда нельзя' : 'Сервер не отвечает'}</h1>
           <p className="sub">
@@ -168,7 +166,6 @@ export default function Moderator() {
 
   return (
     <div className={`form-page moder${vybran ? ' open' : ''}`}>
-      <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · админка</div>
         <h1>Проверка карточек</h1>

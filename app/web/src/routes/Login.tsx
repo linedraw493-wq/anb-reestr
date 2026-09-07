@@ -4,9 +4,20 @@ import { api } from '../lib/api'
 import { saveFlow } from '../lib/flow'
 import { vspomnitNomer, zabytNomer, zapomnitNomer } from '../lib/pamyat'
 import { formatAsTyped, toE164 } from '../lib/phone'
+import type { Flow } from '../lib/types'
+import { Kod } from '../ui/Kod'
 import { Err, Shell } from '../ui/Shell'
 
-/** Повторный вход — без ссылки, по номеру. Решение 02.09.2026. */
+/**
+ * Вход по номеру — **один экран, а не два**.
+ *
+ * Слово владельца 07.09.2026: «сделай авторизацию и регистрацию проще,
+ * удобнее, красивее». Раньше после номера человека уносило на отдельную
+ * страницу `/kod`, и он терял из виду, куда и зачем шёл. Теперь поле кода
+ * появляется прямо здесь, под номером, а «Изменить номер» возвращает на шаг
+ * назад одним нажатием. Адрес `/kod` живой — там код спрашивают у тех, кто
+ * пришёл по ссылке-приглашению.
+ */
 export default function Login() {
   const navigate = useNavigate()
   // `/vhod?kuda=/admin` — человек шёл в админку и был отправлен сюда за
@@ -23,6 +34,8 @@ export default function Login() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unknown, setUnknown] = useState(false)
+  // Код запрошен — показываем второй шаг прямо здесь, не уводя со страницы.
+  const [shag, setShag] = useState<Flow | null>(null)
 
   const phone = toE164(typed)
   const canSend = phone !== null && !sending
@@ -52,8 +65,33 @@ export default function Login() {
     }
 
     zapomnitNomer(phone)
-    saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked, kuda, kanal: res.kanal })
-    navigate('/kod')
+    const flow: Flow = {
+      kind: 'login',
+      phone,
+      phoneMasked: res.phoneMasked,
+      kuda,
+      kanal: res.kanal,
+      resendAfter: res.resendAfter,
+    }
+    // Кладём и в память вкладки: обновит страницу — попадёт на /kod и
+    // продолжит с того же места, а не начнёт заново.
+    saveFlow(flow)
+    setShag(flow)
+  }
+
+  if (shag) {
+    return (
+      <Shell>
+        <h1>{vAdminku ? 'Вход в админку' : 'Вход в реестр'}</h1>
+        <Kod
+          flow={shag}
+          gotovo={(next) =>
+            navigate(kuda ?? (next === 'katalog' ? '/' : '/gotovo'), { replace: true })
+          }
+          smenitNomer={() => setShag(null)}
+        />
+      </Shell>
+    )
   }
 
   return (
@@ -61,8 +99,8 @@ export default function Login() {
       <h1>{vAdminku ? 'Вход в админку' : 'Вход в реестр'}</h1>
       <p className="sub">
         {vAdminku
-          ? 'Введите номер администратора или модератора — пришлём код.'
-          : 'Введите номер, с которым регистрировались. Пришлём код.'}
+          ? 'Номер администратора — пришлём на него код.'
+          : 'Номер, с которым вы регистрировались. Пришлём на него код.'}
       </p>
 
       <div>
