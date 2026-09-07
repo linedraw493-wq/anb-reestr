@@ -13,6 +13,9 @@ export type Karta = {
   followers: string
   reach: string
   istochnik: Istochnik
+  /** когда цифры записаны в последний раз, `2026-09-07`. Спека, день 4:
+      «с пометкой источника и датой». Пусто — карточка старше 07.09.2026 */
+  cifryOt: string | null
   /** что ИИ увидел на скрине — модератор сверяет с тем, что человек указал */
   proverka: Proverka | null
   tematiki: string[]
@@ -101,6 +104,7 @@ export const pustayaKarta: Karta = {
   followers: '',
   reach: '',
   istochnik: 'words',
+  cifryOt: null,
   proverka: null,
   tematiki: [],
   gorod: '',
@@ -147,6 +151,7 @@ const zayavki: Zayavka[] = [
       followers: '31700',
       reach: '8900',
       istochnik: 'screen',
+      cifryOt: null,
       proverka: {
         followers: '31700',
         reach: '8900',
@@ -173,6 +178,7 @@ const zayavki: Zayavka[] = [
       followers: '92400',
       reach: '15000',
       istochnik: 'words',
+      cifryOt: null,
       proverka: {
         followers: '19200',
         reach: null,
@@ -202,6 +208,7 @@ const zayavki: Zayavka[] = [
       followers: '48200',
       reach: '12400',
       istochnik: 'screen',
+      cifryOt: null,
       proverka: {
         followers: '48200',
         reach: '12400',

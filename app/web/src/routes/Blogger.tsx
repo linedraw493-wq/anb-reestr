@@ -6,6 +6,18 @@ import { razobratVse } from '../lib/seti'
 import { Shapka } from '../ui/Shapka'
 
 /** Страница одного блогера в каталоге. Телефон здесь не показывается никогда. */
+/** «2026-09-07» → «7 сентября». Год пишем только у прошлогодних цифр. */
+function denPropisyu(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return iso
+  const tekushchiy = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    ...(tekushchiy ? {} : { year: 'numeric' }),
+  })
+}
+
 export default function Blogger() {
   const { id = '' } = useParams()
   const [karta, setKarta] = useState<Karta | null>(null)
@@ -106,6 +118,9 @@ export default function Blogger() {
             {karta.istochnik === 'screen'
               ? 'Цифры взяты со скрина статистики'
               : 'Цифры указаны блогером со слов'}
+            {/* Спека, день 4: пометка источника **и дата**. Цифра без даты
+                не говорит рекламодателю, вчерашняя она или прошлогодняя. */}
+            {karta.cifryOt && <span className="pill neutral">от {denPropisyu(karta.cifryOt)}</span>}
           </span>
           <p className="fine">
             {karta.istochnik === 'screen'

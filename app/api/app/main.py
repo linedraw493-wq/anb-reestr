@@ -297,6 +297,11 @@ def _sobrat_kartu(
         "followers": str(kartochka["podpischiki"] or ""),
         "reach": str(kartochka["ohvat"] or ""),
         "istochnik": kartochka["istochnik"],
+        # Спека, день 4: пометка источника **и дата**. По ней рекламодатель
+        # понимает, вчерашние это цифры или трёхмесячные.
+        "cifryOt": (
+            kartochka["cifry_ot"].date().isoformat() if kartochka["cifry_ot"] else None
+        ),
         "proverka": _proverka_slovarem(
             _otchet_skrina(skrin), kartochka["podpischiki"], kartochka["ohvat"]
         ),
@@ -875,8 +880,8 @@ async def sohranit_kartochku(request: Request):
                 if stalo_inache and not nastroyki.MODERATSIYA and sporno is None:
                     # без проверки новые цифры встают сразу
                     await conn.execute(
-                        "update kartochki set podpischiki=$2, ohvat=$3, istochnik=$4"
-                        " where id=$1",
+                        "update kartochki set podpischiki=$2, ohvat=$3, istochnik=$4,"
+                        " cifry_ot=now() where id=$1",
                         kid,
                         podpischiki,
                         ohvat,
@@ -919,7 +924,7 @@ async def sohranit_kartochku(request: Request):
             await conn.execute(
                 """
                 update kartochki set
-                  podpischiki = $2, ohvat = $3, istochnik = $4,
+                  podpischiki = $2, ohvat = $3, istochnik = $4, cifry_ot = now(),
                   status = $5, podana_v = now(), prichina_otkaza = null,
                   opublikovana_v = case when $5 = 'published' then now()
                                         else opublikovana_v end
@@ -1069,7 +1074,8 @@ async def odobrit(request: Request):
             if pravka:
                 await conn.execute(
                     """
-                    update kartochki set podpischiki = $2, ohvat = $3, istochnik = $4
+                    update kartochki set podpischiki = $2, ohvat = $3, istochnik = $4,
+                                         cifry_ot = now()
                     where id = $1
                     """,
                     kid,
@@ -1213,7 +1219,12 @@ async def popravit(request: Request):
                 """
                 update kartochki set nik=$2, podpischiki=$3, ohvat=$4, gorod_id=$5,
                   rayon_id=$6, yazyk=$7, stavka=$8, dogovornaya=$9,
-                  istochnik=coalesce($10, istochnik), obnovlena_v=now()
+                  istochnik=coalesce($10, istochnik), obnovlena_v=now(),
+                  -- дату двигаем, только если цифры и правда поменялись:
+                  -- правка города не делает подписчиков свежее
+                  cifry_ot = case
+                    when podpischiki is distinct from $3 or ohvat is distinct from $4
+                    then now() else cifry_ot end
                 where id=$1
                 """,
                 kid,

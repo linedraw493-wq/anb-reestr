@@ -9,6 +9,10 @@
 
    - лист не белый, а светло-серый (`--canvas`), карточки на нём белые: так
      видно, где кончается одна карточка и начинается другая, без жирных рамок;
+   - поверх листа три бледных пятна — индиго, бирюза, тёплое (`--glow-1..3`):
+     сверху страница светится, ниже успокаивается. Слово владельца
+     07.09.2026, «добавь фоновый цвет красивый». Пятна нарочно очень
+     бледные: фон должен чувствоваться, а не спорить с текстом;
    - акцент — индиго, редкий гость: кнопка действия, выбранный фильтр, ссылка.
      Золотой (`--gold`) стоит ровно на одном — «проверено со скрина»;
    - тени мягкие и в три ступени, ими показываем, что лежит выше: карточка →
@@ -26,7 +30,14 @@
   --paper: #ffffff;
   --surface: #ffffff;
   /* фон страницы: карточки лежат на нём, а не сливаются с ним */
-  --canvas: #f4f6fb;
+  --canvas: #eff2fa;
+  /* Три мягких пятна поверх листа — «рассвет». Слово владельца 07.09.2026:
+     «добавь фоновый цвет красивый». Они очень бледные нарочно: фон должен
+     чувствоваться, а не спорить с карточками и текстом. Меняются здесь же,
+     всем сайтом разом. */
+  --glow-1: rgba(74, 77, 232, 0.2); /* индиго, сверху слева */
+  --glow-2: rgba(15, 155, 176, 0.18); /* бирюза, сверху справа */
+  --glow-3: rgba(180, 124, 0, 0.09); /* тёплое, ниже по центру */
   --ink: #111524;
   --muted: #5a6379;
   --faint: #8e96a8;
@@ -69,6 +80,13 @@
   --shadow-lg: 0 24px 60px -20px rgba(17, 21, 36, 0.3);
 }
 
+/* Выделение мышью — в цвет сайта. Мелочь, но системный синий выбивается
+   из всей остальной палитры. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
 /* --------------------------------------------------------------------- сброс */
 
 *,
@@ -84,13 +102,31 @@ html {
 }
 
 body {
-  background: var(--canvas);
+  background-color: var(--canvas);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
+}
+
+/* Лист не плоский: три бледных пятна сверху, дальше ровный цвет. Слоем
+   под всем содержимым, а не картинкой на body: `background-attachment:
+   fixed` на телефонах (особенно в Safari) то дёргается при прокрутке, то
+   растягивается вместе с адресной строкой. Прибитый слой ведёт себя
+   одинаково везде. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(58rem 40rem at 8% -12%, var(--glow-1), transparent 60%),
+    radial-gradient(52rem 36rem at 96% -6%, var(--glow-2), transparent 62%),
+    radial-gradient(46rem 34rem at 50% 18%, var(--glow-3), transparent 70%);
+  background-repeat: no-repeat;
 }
 
 h1,
@@ -110,6 +146,35 @@ input {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Полоса прокрутки в цвет сайта, а не серая системная. Только там, где
+   браузер это умеет; где не умеет — остаётся своя, ничего не ломается. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+  background-clip: content-box;
 }
 
 /* ------------------------------------------------------------------- каркас */
@@ -138,7 +203,11 @@ input {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 30px 26px 26px;
-  box-shadow: var(--shadow-md);
+  /* Своя тень, а не общая: на цветном фоне карточка входа должна читаться
+     как лист бумаги над ним, иначе её края тонут в свечении. */
+  box-shadow:
+    0 20px 46px -24px rgba(17, 21, 36, 0.38),
+    0 2px 6px rgba(17, 21, 36, 0.06);
 }
 
 .wordmark {
@@ -374,7 +443,10 @@ input {
   display: block;
   width: 100%;
   text-align: center;
-  background: var(--accent);
+  /* Заливка не плоская, а с еле заметным переходом сверху вниз: кнопка
+     выглядит нажимаемой, но остаётся строгой. */
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.06));
   color: var(--on-accent);
   border: none;
   border-radius: var(--radius);
@@ -728,8 +800,14 @@ input {
 .hero-cifra b {
   font-size: 0.9375rem;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--accent-ink);
   font-variant-numeric: tabular-nums;
+}
+
+/* Плашка с цифрой чуть светится изнутри — фон под ней цветной, и белая
+   таблетка на нём смотрелась бы вырезанной. */
+.hero-cifra {
+  background-image: linear-gradient(180deg, #ffffff, var(--accent-soft));
 }
 
 .form-grid {
