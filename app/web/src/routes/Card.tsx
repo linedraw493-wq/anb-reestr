@@ -231,7 +231,9 @@ export default function Card() {
               {nado('fio') ? (
                 <span className="trebuem-txt">Напишите, как к вам обращаться</span>
               ) : (
-                <span className="fine">Рекламодателю проще писать человеку по имени, чем нику.</span>
+                <span className="fine">
+                  Рекламодателю проще писать человеку по имени, чем нику.
+                </span>
               )}
             </label>
 

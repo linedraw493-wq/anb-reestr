@@ -6,6 +6,7 @@ import Done from './routes/Done'
 import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
+import VhodAdmin from './routes/VhodAdmin'
 import Moderator from './routes/Moderator'
 import Moderatory from './routes/Moderatory'
 import Priglasheniya from './routes/Priglasheniya'
@@ -27,6 +28,10 @@ export default function App() {
       {/* цепочка входа */}
       <Route path="/i/:token" element={<Invite />} />
       <Route path="/vhod" element={<Login />} />
+      {/* Запасная дверь: логин и пароль. Ссылок сюда нет ни с одного
+          экрана — адрес знает тот, кому сказали. Слово владельца
+          07.09.2026: «скрытно, но понятно для обычного юзера». */}
+      <Route path="/vhod/admin" element={<VhodAdmin />} />
       <Route path="/kod" element={<Code />} />
       <Route path="/gotovo" element={<Done />} />
 

@@ -5,6 +5,7 @@
 между доменами.
 """
 
+import hmac
 import io
 import json
 import re
@@ -529,6 +530,57 @@ async def vhod_check(request: Request):
 
     kuda = "katalog" if (zapolnena or rol == "admin") else "card"
     otvet = JSONResponse({"ok": True, "next": kuda})
+    vhod.postavit_cookie(otvet, znachenie)
+    return otvet
+
+
+@app.post("/api/auth/parol")
+async def vhod_parolem(request: Request):
+    """Запасная дверь в админку: логин и пароль.
+
+    Слово владельца 07.09.2026: «сделай возможность входа в админку через
+    лог/пароль, но не делай это видимым интерфейсом на входе… скрытно, но
+    понятно для обычного юзера». Дверь есть, но её не видно ни на одном
+    экране: адрес `/vhod/admin` знает тот, кому сказали.
+
+    Значения — только в настройках сервера. Пусто в любом из двух — двери
+    нет: отвечаем «выключено», как будто её и не было.
+
+    За дверью не отдельный кабинет, а живой админ — тот, чей номер стоит в
+    `VLADELETS_TELEFON`. Иначе в списке прав заводится безымянный «Админ
+    (вход по логину)», которого потом никто не может опознать.
+    """
+    if _slishkom_chasto(request):
+        return {"ok": False, "reason": "too-often", "retryAfter": 60}
+    if not (nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL):
+        return {"ok": False, "reason": "off"}
+
+    telo = await request.json()
+    login = str(telo.get("login", ""))
+    parol = str(telo.get("parol", ""))
+    # compare_digest, а не ==: обычное сравнение выдаёт длину общего начала
+    # временем ответа, и пароль подбирается по буквам.
+    podoshlo = hmac.compare_digest(login, nastroyki.ADMIN_LOGIN) and hmac.compare_digest(
+        parol, nastroyki.ADMIN_PAROL
+    )
+    if not podoshlo:
+        log.warning("вход по паролю: не подошло")
+        return {"ok": False, "reason": "bad-creds"}
+
+    telefon = vhod.normalizovat_telefon(nastroyki.VLADELETS_TELEFON)
+    async with baza.pul().acquire() as conn:
+        chelovek_id = await conn.fetchval(
+            "select id from lyudi where telefon = $1 and rol = 'admin' and udalen_v is null",
+            telefon or "",
+        )
+        if chelovek_id is None:
+            # Некому открывать: номера владельца в базе нет или он не админ.
+            log.warning("вход по паролю: админа из VLADELETS_TELEFON в базе нет")
+            return {"ok": False, "reason": "off"}
+        znachenie = await vhod.otkryt_sessiyu(conn, chelovek_id)
+
+    log.info("вход по паролю: пустили админа %s", chelovek_id)
+    otvet = JSONResponse({"ok": True})
     vhod.postavit_cookie(otvet, znachenie)
     return otvet
 

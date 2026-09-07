@@ -45,6 +45,23 @@ const liveApi: AuthApi = {
 
 export const api: AuthApi = USE_FAKE ? fakeApi : liveApi
 
+/**
+ * Запасная дверь в админку: логин и пароль. На экране входа её не видно —
+ * открывается по адресу `/vhod/admin` или пятью нажатиями по надписи над
+ * заголовком. Слово владельца 07.09.2026: «скрытно, но понятно».
+ */
+export async function vhodParolem(
+  login: string,
+  parol: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (USE_FAKE) return { ok: true }
+  try {
+    return await post('/api/auth/parol', { login, parol })
+  } catch {
+    return { ok: false, reason: 'net' }
+  }
+}
+
 export async function vyyti(): Promise<void> {
   if (!USE_FAKE) await post('/api/auth/exit', {})
 }

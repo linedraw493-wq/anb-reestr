@@ -185,13 +185,60 @@ async def test_sebe_rol_ne_menyayut(klient, baza_conn):
     klient.cookies.clear()
 
 
-async def test_vhoda_po_parolyu_bolshe_net(klient):
-    """Слово владельца 07.09.2026: «логина и пароля не будет»."""
+async def test_dver_po_parolyu_zakryta_poka_ne_zadana(klient):
+    """Значений в коде нет: пусто в настройках — двери нет вовсе.
+
+    Слово владельца 07.09.2026: «скрытно, но понятно». Скрытно — значит и
+    от чужого тоже: репозиторий открытый, пароль живёт только в настройках
+    сервера.
+    """
     klient.cookies.clear()
     otvet = await klient.post("/api/auth/parol", json={"login": "admin", "parol": "admin"})
-    # Двери нет вовсе: 404, либо 405 — под этим адресом остался только
-    # раздатчик собранных страниц, а он отвечает на GET.
-    assert otvet.status_code in (404, 405)
+    assert otvet.json() == {"ok": False, "reason": "off"}
+
+
+async def test_dver_po_parolyu_puskaet_zhivogo_admina(klient, baza_conn, monkeypatch):
+    """За дверью не отдельный кабинет, а админ из VLADELETS_TELEFON."""
+    from app import nastroyki
+
+    telefon = "+77060000001"
+    kto = await zavesti_cheloveka(baza_conn, telefon, rol="admin", imya="Владелец")
+    monkeypatch.setattr(nastroyki, "ADMIN_LOGIN", "kot")
+    monkeypatch.setattr(nastroyki, "ADMIN_PAROL", "dlinnyy-parol-1234")
+    monkeypatch.setattr(nastroyki, "VLADELETS_TELEFON", telefon)
+
+    klient.cookies.clear()
+    ne_tot = await klient.post("/api/auth/parol", json={"login": "kot", "parol": "ne-tot"})
+    assert ne_tot.json()["reason"] == "bad-creds"
+
+    voshel = await klient.post(
+        "/api/auth/parol", json={"login": "kot", "parol": "dlinnyy-parol-1234"}
+    )
+    assert voshel.json()["ok"] is True
+
+    ya = (await klient.get("/api/me")).json()
+    assert ya["vnutri"] is True and ya["rol"] == "admin"
+    # именно тот человек, а не безымянный кабинет
+    sessiy = await baza_conn.fetchval(
+        "select count(*) from sessii where chelovek_id = $1", kto
+    )
+    assert sessiy == 1
+    klient.cookies.clear()
+
+
+async def test_dver_bez_zhivogo_admina_ne_otkryvaetsya(klient, baza_conn, monkeypatch):
+    """Номер владельца не заведён админом — открывать некому."""
+    from app import nastroyki
+
+    monkeypatch.setattr(nastroyki, "ADMIN_LOGIN", "kot")
+    monkeypatch.setattr(nastroyki, "ADMIN_PAROL", "dlinnyy-parol-1234")
+    monkeypatch.setattr(nastroyki, "VLADELETS_TELEFON", "+77069999999")
+
+    klient.cookies.clear()
+    otvet = await klient.post(
+        "/api/auth/parol", json={"login": "kot", "parol": "dlinnyy-parol-1234"}
+    )
+    assert otvet.json() == {"ok": False, "reason": "off"}
 
 
 # ------------------------------------------ админ из панели (07.09.2026)
