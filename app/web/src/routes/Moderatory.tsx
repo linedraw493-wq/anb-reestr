@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi, NetDostupa, type Chelovek, type Rol } from '../lib/api'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
@@ -81,6 +82,7 @@ export default function Moderatory() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
+          <Nadpis slovo="ПРАВА" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Права раздаёт администратор Ассоциации.</p>
         </header>
@@ -105,6 +107,7 @@ export default function Moderatory() {
     <div className="form-page">
       <Shapka />
       <header className="form-head">
+        <Nadpis slovo="ПРАВА" />
         <div className="wordmark">Ассоциация блогеров · права</div>
         <h1>Права</h1>
         <p className="sub">
@@ -127,7 +130,7 @@ export default function Moderatory() {
         {pravaU.map((c) => (
           <li key={c.chelovekId}>
             <span className="prig-nik">{imenem(c)}</span>
-            <span className={`pill ${c.rol === 'admin' ? 'ok' : 'neutral'}`}>
+            <span className={`pill ${c.rol === 'admin' ? 'rol-admin' : 'neutral'}`}>
               {NAZVANIE[c.rol]}
             </span>
             {c.etoYa && <span className="pill say">это вы</span>}

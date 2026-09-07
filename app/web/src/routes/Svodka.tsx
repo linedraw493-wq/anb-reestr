@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
@@ -60,6 +61,7 @@ export default function Svodka() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
+          <Nadpis slovo="СВОДКА" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Сводка — для администратора Ассоциации.</p>
         </header>
@@ -85,6 +87,7 @@ export default function Svodka() {
     <div className="form-page">
       <Shapka />
       <header className="form-head">
+        <Nadpis slovo="СВОДКА" />
         <div className="wordmark">Ассоциация блогеров · сводка</div>
         <h1>Как идёт наполнение</h1>
         <p className="sub">

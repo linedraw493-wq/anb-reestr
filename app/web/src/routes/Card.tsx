@@ -13,6 +13,7 @@ import { razobrat, razobratVse } from '../lib/seti'
 import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
 import { USE_FAKE } from '../lib/rezhim'
 import { Preview } from '../ui/Preview'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
@@ -138,6 +139,7 @@ export default function Card() {
     <div className="form-page">
       <Shapka />
       <header className="form-head">
+        <Nadpis slovo="КАРТОЧКА" />
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>Ваша карточка</h1>
         <p className="sub">
@@ -235,14 +237,18 @@ export default function Card() {
                     }
                   }}
                 />
-                <button className="btn small" disabled={vstavka.trim() === ''} onClick={dobavitSsylku}>
+                <button
+                  className="btn small"
+                  disabled={vstavka.trim() === ''}
+                  onClick={dobavitSsylku}
+                >
                   Добавить
                 </button>
               </div>
               {ssylkaBad && <p className="warn-txt small-txt">Это не похоже на ссылку.</p>}
               <p className="fine">
-                Откройте свой профиль, скопируйте адрес из строки браузера и вставьте сюда.
-                Сеть определим сами.
+                Откройте свой профиль, скопируйте адрес из строки браузера и вставьте сюда. Сеть
+                определим сами.
               </p>
 
               {seti.length > 0 && (
@@ -259,7 +265,12 @@ export default function Card() {
                       <button
                         className="linkbtn"
                         aria-label={`Убрать ${s.name}`}
-                        onClick={() => set('ssylki', k.ssylki.filter((u) => u !== s.url))}
+                        onClick={() =>
+                          set(
+                            'ssylki',
+                            k.ssylki.filter((u) => u !== s.url),
+                          )
+                        }
                       >
                         Убрать
                       </button>
@@ -284,8 +295,8 @@ export default function Card() {
                   )}
                   {scan === 'failed' && (
                     <p className="reading">
-                      Скрин сохранён. Впишите подписчиков и охват сами — с этой картинки
-                      прочитать не вышло.
+                      Скрин сохранён. Впишите подписчиков и охват сами — с этой картинки прочитать
+                      не вышло.
                     </p>
                   )}
                   <button className="btn small ghost" onClick={() => shotRef.current?.click()}>
@@ -300,8 +311,7 @@ export default function Card() {
                 </span>
                 Загрузите скрин статистики
                 <span className="fine">
-                  Экран «Статистика» из Instagram или TikTok. Модератор сверит по нему ваши
-                  цифры.
+                  Экран «Статистика» из Instagram или TikTok. Модератор сверит по нему ваши цифры.
                 </span>
                 <span className="pill soon">скоро: цифры прочитаются сами</span>
               </button>
@@ -506,19 +516,12 @@ export default function Card() {
 }
 
 /** Экран после отправки. */
-function Sent({
-  k,
-  published,
-  pravit,
-}: {
-  k: Karta
-  published: boolean
-  pravit: () => void
-}) {
+function Sent({ k, published, pravit }: { k: Karta; published: boolean; pravit: () => void }) {
   return (
     <div className="form-page narrow">
       <Shapka />
       <header className="form-head">
+        <Nadpis slovo="КАРТОЧКА" />
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>{published ? 'Карточка в каталоге' : 'Карточка на проверке'}</h1>
         <p className="sub">

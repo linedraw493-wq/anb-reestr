@@ -5,6 +5,13 @@
    нужно нормально MVP собрать рабочее». Стало (слово владельца 06.09.2026):
    «накатывай дизайн красивый». MVP собран и проверен — можно одеть.
 
+   **Референс — Сферум** (слово владельца 07.09.2026, ссылка на referest.ru):
+   насыщенный фиолетовый градиент, белый текст на нём, крупные скруглённые
+   карточки, много воздуха. Оттуда взяты цвет, скругления и приём «шапка
+   страницы — фиолетовый блок, а не просто заголовок». Плюс его же слова:
+   «залей фон цветом», «добавь фона в карточки», «надписи на фоне большим
+   размытым текстом с эффектом рыбьего глаза».
+
    Что здесь заведено:
 
    - лист не белый, а светло-серый (`--canvas`), карточки на нём белые: так
@@ -30,26 +37,30 @@
   --paper: #ffffff;
   --surface: #ffffff;
   /* фон страницы: карточки лежат на нём, а не сливаются с ним */
-  --canvas: #eff2fa;
+  --canvas: #f4f0fe;
   /* Три мягких пятна поверх листа — «рассвет». Слово владельца 07.09.2026:
      «добавь фоновый цвет красивый». Они очень бледные нарочно: фон должен
      чувствоваться, а не спорить с карточками и текстом. Меняются здесь же,
      всем сайтом разом. */
-  --glow-1: rgba(74, 77, 232, 0.2); /* индиго, сверху слева */
-  --glow-2: rgba(15, 155, 176, 0.18); /* бирюза, сверху справа */
-  --glow-3: rgba(180, 124, 0, 0.09); /* тёплое, ниже по центру */
-  --ink: #111524;
-  --muted: #5a6379;
-  --faint: #8e96a8;
-  --line: #e7eaf2;
-  --line-strong: #ccd3e2;
+  --glow-1: rgba(124, 58, 237, 0.3); /* фиолет, сверху слева */
+  --glow-2: rgba(217, 70, 239, 0.2); /* фуксия, сверху справа */
+  --glow-3: rgba(56, 189, 248, 0.14); /* холодное, ниже по центру */
+  --ink: #1b1233;
+  --muted: #605577;
+  --faint: #8f86a6;
+  --line: #e9e1f8;
+  --line-strong: #d2c6ee;
 
-  --accent: #4a4de8;
-  --accent-ink: #3739c4;
-  --accent-soft: #eeeeff;
-  --accent-2: #0f9bb0;
-  --accent-2-soft: #e4f6f8;
+  /* Фиолетовый Сферума. Был индиго — родственный цвет, но глуше. */
+  --accent: #7c3aed;
+  --accent-ink: #5b21b6;
+  --accent-soft: #f2ebff;
+  --accent-2: #0e9aad;
+  --accent-2-soft: #e2f6f8;
   --on-accent: #ffffff;
+
+  /* Заливка шапок страниц и экрана входа — тот самый градиент с референса. */
+  --hero: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 46%, #a855f7 100%);
 
   /* золотой — только «проверено со скрина», больше нигде */
   --gold: #b47c00;
@@ -69,15 +80,21 @@
   /* ------------------------------------------------------------- размер */
   /* высота липкой шапки: под ней встают все прилипающие колонки */
   --shapka-h: 56px;
-  --radius: 10px;
-  --radius-lg: 16px;
+  --radius: 12px;
+  --radius-lg: 20px;
+  /* Шапка страницы и карточка входа — самые крупные скругления, как в
+     референсе: там всё крупное и мягкое. */
+  --radius-xl: 28px;
   --radius-pill: 999px;
   --gap: 16px;
 
   /* --------------------------------------------------------------- тень */
-  --shadow-sm: 0 1px 2px rgba(17, 21, 36, 0.05);
-  --shadow-md: 0 6px 18px -6px rgba(17, 21, 36, 0.13), 0 2px 5px rgba(17, 21, 36, 0.05);
-  --shadow-lg: 0 24px 60px -20px rgba(17, 21, 36, 0.3);
+  /* Тени с фиолетовой примесью: серая тень на сиреневом листе выглядит
+     грязной. */
+  --shadow-sm: 0 1px 2px rgba(46, 16, 101, 0.06);
+  --shadow-md: 0 8px 22px -8px rgba(46, 16, 101, 0.18), 0 2px 6px rgba(46, 16, 101, 0.06);
+  --shadow-lg: 0 26px 64px -22px rgba(46, 16, 101, 0.38);
+  --shadow-hero: 0 26px 60px -34px rgba(109, 40, 217, 0.85);
 }
 
 /* Выделение мышью — в цвет сайта. Мелочь, но системный синий выбивается
@@ -186,11 +203,24 @@ input {
   grid-template-columns: 1fr;
 }
 
+/* Экран входа — фиолетовый во всю страницу, как первый экран у референса.
+   Слово владельца 07.09.2026: «залей фон цветом». Белая карточка лежит
+   поверх, за ней — большая размытая надпись. */
 .pane {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  background: var(--hero);
+}
+
+.pane > .fon-nadpis {
+  inset: 0;
+  height: 100%;
+  opacity: 0.17;
+  filter: blur(10px);
 }
 
 .card {
@@ -201,13 +231,14 @@ input {
   gap: var(--gap);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 30px 26px 26px;
+  border-radius: var(--radius-xl);
+  padding: 32px 28px 28px;
+  background-image: linear-gradient(158deg, #ffffff 0%, #fdfbff 55%, #f7f2ff 100%);
   /* Своя тень, а не общая: на цветном фоне карточка входа должна читаться
      как лист бумаги над ним, иначе её края тонут в свечении. */
   box-shadow:
-    0 20px 46px -24px rgba(17, 21, 36, 0.38),
-    0 2px 6px rgba(17, 21, 36, 0.06);
+    0 24px 54px -26px rgba(46, 16, 101, 0.5),
+    0 2px 8px rgba(46, 16, 101, 0.08);
 }
 
 .wordmark {
@@ -392,7 +423,9 @@ input {
   font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 600;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .cell.filled {
@@ -446,11 +479,11 @@ input {
   /* Заливка не плоская, а с еле заметным переходом сверху вниз: кнопка
      выглядит нажимаемой, но остаётся строгой. */
   background-color: var(--accent);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.06));
+  background-image: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 55%, #6d28d9 100%);
   color: var(--on-accent);
   border: none;
-  border-radius: var(--radius);
-  padding: 14px 16px;
+  border-radius: var(--radius-pill);
+  padding: 14px 18px;
   font-family: var(--font-body);
   font-size: 0.9375rem;
   font-weight: 600;
@@ -715,9 +748,13 @@ input {
   min-height: 176px;
   border-style: solid;
   pointer-events: none;
-  background:
-    linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.85) 50%, transparent 80%)
-      var(--accent-soft);
+  background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.85) 50%,
+      transparent 80%
+    )
+    var(--accent-soft);
   background-size: 220% 100%;
   animation: begit 1.25s ease-in-out infinite;
 }
@@ -742,19 +779,86 @@ input {
   }
 }
 
+/* Шапка страницы — не просто заголовок, а фиолетовый блок (референс —
+   Сферум). Внутри него живёт большая размытая надпись (`.fon-nadpis`),
+   поэтому `overflow: hidden` и своя система координат. */
 .form-head {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 26px;
+  padding: 30px 30px 28px;
+  border-radius: var(--radius-xl);
+  background: var(--hero);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-hero);
+}
+
+.form-head > * {
+  position: relative;
+  z-index: 1;
 }
 
 .form-head h1 {
   font-size: clamp(1.5rem, 4vw, 2rem);
+  color: var(--on-accent);
 }
 
 .form-head .sub {
   max-width: 62ch;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.form-head .wordmark {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.form-head .fine {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.form-head b {
+  color: var(--on-accent);
+}
+
+@media (max-width: 560px) {
+  .form-head {
+    padding: 24px 20px 22px;
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* Большая размытая надпись на фоне — «рыбий глаз», слово владельца
+   07.09.2026. Сама картинка рисуется холстом (`ui/Nadpis.tsx`), здесь ей
+   задаётся место, размытие и прозрачность. Лежит слоем позади текста:
+   `z-index: 0` против `z-index: 1` у содержимого шапки. */
+.fon-nadpis {
+  position: absolute;
+  z-index: 0;
+  inset: -34% -4% auto -4%;
+  height: 190%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.22;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fon-nadpis {
+    animation: nadpis-vsplyla 0.7s ease both;
+  }
+}
+
+@keyframes nadpis-vsplyla {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
 }
 
 /* ------------------------------------------------------- шапка каталога */
@@ -789,25 +893,21 @@ input {
   gap: 6px;
   padding: 7px 14px;
   border-radius: var(--radius-pill);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
+  /* стекло поверх фиолетового, а не белая таблетка: та выглядела вырезанной */
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.82);
   white-space: nowrap;
 }
 
 .hero-cifra b {
   font-size: 0.9375rem;
   font-weight: 700;
-  color: var(--accent-ink);
+  color: var(--on-accent);
   font-variant-numeric: tabular-nums;
-}
-
-/* Плашка с цифрой чуть светится изнутри — фон под ней цветной, и белая
-   таблетка на нём смотрелась бы вырезанной. */
-.hero-cifra {
-  background-image: linear-gradient(180deg, #ffffff, var(--accent-soft));
 }
 
 .form-grid {
@@ -856,14 +956,19 @@ input {
 
 /* -------------------------------------------------------------- блоки */
 
+/* Слово владельца 07.09.2026: «добавь фона в карточки». Не плоский белый,
+   а очень светлый переход к сиреневому — карточка перестаёт быть дыркой в
+   листе и становится предметом. Держим бледным: читаемость важнее. */
 .block {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--surface);
+  background-color: var(--surface);
+  background-image: linear-gradient(158deg, #ffffff 0%, #fbf8ff 52%, #f5efff 100%);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: 22px 20px;
+  padding: 24px 22px;
+  box-shadow: var(--shadow-sm);
 }
 
 .block h2 {
@@ -912,10 +1017,15 @@ select.input {
   appearance: none;
   font-family: var(--font-body);
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 16px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
-  background-size: 5px 5px, 5px 5px;
+  background-position:
+    calc(100% - 16px) calc(50% + 1px),
+    calc(100% - 11px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
   background-repeat: no-repeat;
   padding-right: 32px;
 }
@@ -1598,6 +1708,13 @@ select.input[disabled] {
   color: var(--accent-ink);
 }
 
+/* Роль в списке прав. Золотой в этом доме значит «проверено со скрина» и
+   больше ничего — поэтому у администратора своя плашка. */
+.pill.rol-admin {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 /* --------------------------------------------------------- отчёт ИИ */
 
 .proverka {
@@ -1864,7 +1981,8 @@ select.input[disabled] {
   gap: 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background-color: var(--surface);
+  background-image: linear-gradient(158deg, #ffffff 0%, #fbf8ff 55%, #f4eeff 100%);
   padding: 18px;
   text-decoration: none;
   color: inherit;
@@ -1877,7 +1995,7 @@ select.input[disabled] {
 
 .kk:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
 
@@ -2043,10 +2161,45 @@ select.input[disabled] {
   gap: 20px;
 }
 
+/* Верх страницы блогера — такой же фиолетовый блок, как шапки остальных
+   страниц: иначе публичная карточка выглядела бледнее всего сайта. За
+   именем — его же ник большой размытой надписью. */
 .blg-verh {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
+  padding: 26px 28px;
+  border-radius: var(--radius-xl);
+  background: var(--hero);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-hero);
+}
+
+.blg-verh > * {
+  position: relative;
+  z-index: 1;
+}
+
+.blg-verh h1 {
+  color: var(--on-accent);
+}
+
+.blg-verh .sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.blg-verh .ava {
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 560px) {
+  .blg-verh {
+    padding: 20px 18px;
+    border-radius: var(--radius-lg);
+  }
 }
 
 .ava.ogromnaya {
@@ -2061,10 +2214,11 @@ select.input[disabled] {
   gap: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  padding: 16px 18px;
+  background-color: var(--surface);
+  background-image: linear-gradient(158deg, #ffffff 0%, #fbf8ff 55%, #f5efff 100%);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
 }
-
 
 /* ---------------------------------------------- каталог на телефоне: шторка */
 
@@ -2187,8 +2341,9 @@ select.input[disabled] {
   flex-direction: column;
   gap: 11px;
   margin-bottom: 20px;
-  padding: 12px;
-  background: var(--paper);
+  padding: 13px;
+  background-color: var(--paper);
+  background-image: linear-gradient(120deg, #ffffff 0%, #fbf9ff 60%, #f6f1ff 100%);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -2431,8 +2586,10 @@ select.input[disabled] {
   flex-wrap: wrap;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
-  padding: 11px 14px;
+  background-color: var(--surface);
+  background-image: linear-gradient(120deg, #ffffff 0%, #fbf9ff 60%, #f6f1ff 100%);
+  padding: 12px 15px;
+  box-shadow: var(--shadow-sm);
 }
 
 .prig-nik {

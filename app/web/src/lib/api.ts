@@ -135,9 +135,7 @@ const liveModerApi: ModerApi = {
   skryt: async (id, skryt) => void (await post('/api/moder/skryt', { id, skryt })),
   async prichiny() {
     try {
-      const otvet = await get<{ prichiny?: { id: number; tekst: string }[] }>(
-        '/api/moder/prichiny',
-      )
+      const otvet = await get<{ prichiny?: { id: number; tekst: string }[] }>('/api/moder/prichiny')
       return (otvet.prichiny ?? []).map((p) => p.tekst)
     } catch {
       // Список — подсказка, а не условие работы: не пришёл, модератор пишет руками.

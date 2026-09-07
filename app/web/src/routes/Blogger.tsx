@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { initsialy, korotko, razdelit, ton, type Karta } from '../lib/card'
 import { vzyatOdnogo } from '../lib/katalog'
 import { razobratVse } from '../lib/seti'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /** Страница одного блогера в каталоге. Телефон здесь не показывается никогда. */
@@ -75,6 +76,7 @@ export default function Blogger() {
 
       <div className="blg">
         <div className="blg-verh">
+          <Nadpis slovo={karta.nick.replace(/^@/, '').toUpperCase()} />
           {karta.photo ? (
             <img className="ava ava-img ogromnaya" src={karta.photo} alt="" />
           ) : (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
@@ -63,6 +64,7 @@ export default function SpiskiEkran() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
+          <Nadpis slovo="СПИСКИ" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Списки правит администратор Ассоциации.</p>
         </header>
@@ -89,12 +91,12 @@ export default function SpiskiEkran() {
     <div className="form-page">
       <Shapka />
       <header className="form-head">
+        <Nadpis slovo="СПИСКИ" />
         <div className="wordmark">Ассоциация блогеров · списки</div>
         <h1>Списки для выбора</h1>
         <p className="sub">
-          Из этих списков блогер выбирает тематику и адрес, по ним же работают фильтры
-          каталога. Удаления нет: скрытая строка пропадает из выбора, но у старых карточек
-          остаётся.
+          Из этих списков блогер выбирает тематику и адрес, по ним же работают фильтры каталога.
+          Удаления нет: скрытая строка пропадает из выбора, но у старых карточек остаётся.
         </p>
       </header>
 
@@ -200,8 +202,8 @@ export default function SpiskiEkran() {
       </ul>
 
       <p className="fine">
-        Число рядом — в скольких карточках строка стоит сейчас. Переименование безопасно:
-        карточки не трогаются, меняется только надпись.
+        Число рядом — в скольких карточках строка стоит сейчас. Переименование безопасно: карточки
+        не трогаются, меняется только надпись.
       </p>
     </div>
   )

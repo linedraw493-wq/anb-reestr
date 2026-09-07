@@ -15,8 +15,7 @@
 export const OTP_LIVE = (import.meta.env.VITE_OTP ?? 'fake') === 'live'
 
 export type OtpStart =
-  | { ok: true; ticket: string; resendAfter: number }
-  | { ok: false; reason: 'no-delivery' }
+  { ok: true; ticket: string; resendAfter: number } | { ok: false; reason: 'no-delivery' }
 
 export interface Otp {
   /** label — что показать в сообщении, чтобы было понятно, чей это код */

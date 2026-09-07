@@ -14,6 +14,7 @@ import {
 import { razobratVse } from '../lib/seti'
 import { useSpravochniki } from '../lib/spravochniki'
 import { Karta } from '../ui/Karta'
+import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /** Главная страница сайта: сюда приходит рекламодатель искать блогера. */
@@ -98,6 +99,7 @@ export default function Katalog() {
       <Shapka />
 
       <header className="form-head">
+        <Nadpis slovo="БЛОГЕРЫ" />
         <h1>Каталог блогеров</h1>
         <p className="sub">
           Блогеры Казахстана в одном месте. Отберите по тематике, городу, охвату и цене — и напишите
