@@ -123,8 +123,24 @@ def _nomer(znachenie: Any) -> int | None:
 _stuk: dict[str, list[float]] = {}
 
 
+def _adres(request: Request) -> str:
+    """Настоящий адрес того, кто стучится.
+
+    Баг, найденный 07.09.2026: брали `request.client.host`, а на бою сервер
+    стоит за проксей Vercel — там у всех посетителей он один и тот же. То
+    есть десять попыток входа в минуту делились на весь сайт: одиннадцатый
+    человек получал «слишком часто», ничего не сделав. Настоящий адрес
+    прокси кладёт в `x-forwarded-for`, первым в списке.
+    """
+    cepochka = request.headers.get("x-forwarded-for", "")
+    pervyy = cepochka.split(",")[0].strip()
+    if pervyy:
+        return pervyy
+    return request.client.host if request.client else "?"
+
+
 def _slishkom_chasto(request: Request) -> bool:
-    adres = request.client.host if request.client else "?"
+    adres = _adres(request)
     teper = time.monotonic()
     bylo = [t for t in _stuk.get(adres, []) if teper - t < 60]
     bylo.append(teper)
@@ -401,8 +417,11 @@ async def vhod_start(request: Request):
             telefon = vhod.normalizovat_telefon(syroy or "")
             if telefon is None:
                 return {"ok": False, "reason": "bad-phone"}
+            # `udalen_v` — человек попросил себя удалить. Такому вход
+            # закрыт: иначе кнопка «удалить себя», когда она появится,
+            # окажется наполовину пустой обещанием.
             chelovek_id = await conn.fetchval(
-                "select id from lyudi where telefon = $1", telefon
+                "select id from lyudi where telefon = $1 and udalen_v is null", telefon
             )
             # Слово владельца: номера нет в базе — так и пишем.
             if chelovek_id is None:
@@ -449,7 +468,9 @@ async def vhod_check(request: Request):
         else:
             telefon = vhod.normalizovat_telefon(syroy or "")
             chelovek_id = (
-                await conn.fetchval("select id from lyudi where telefon = $1", telefon)
+                await conn.fetchval(
+                    "select id from lyudi where telefon = $1 and udalen_v is null", telefon
+                )
                 if telefon
                 else None
             )
@@ -509,21 +530,32 @@ async def vhod_exit(request: Request):
 
 @app.get("/api/me")
 async def kto_ya(request: Request):
+    """Кто вошёл — и заодно место, где вход продлевается.
+
+    Этот адрес спрашивает шапка на каждой странице, поэтому продление
+    живёт здесь: пока человек ходит по сайту, срок его входа отодвигается
+    сам, и код у него больше не спросят. Слово владельца 07.09.2026 —
+    «сделай хэширование, чтобы запоминал вход в аккаунт».
+    """
     chelovek = await _tekushchiy(request)
     if chelovek is None:
-        return {"vnutri": False}
+        return JSONResponse({"vnutri": False})
     async with baza.pul().acquire() as conn:
         status = await conn.fetchval(
             "select status from kartochki where chelovek_id = $1", chelovek["id"]
         )
-    return {
-        "vnutri": True,
-        "rol": chelovek["rol"],
-        "imya": chelovek["imya"],
-        "telefon": vhod.maska(chelovek["telefon"]),
-        # Шапке нужно знать, звать «моя карточка» или «заполнить карточку».
-        "kartochkaZapolnena": status is not None and status != "draft",
-    }
+    otvet = JSONResponse(
+        {
+            "vnutri": True,
+            "rol": chelovek["rol"],
+            "imya": chelovek["imya"],
+            "telefon": vhod.maska(chelovek["telefon"]),
+            # Шапке нужно знать, звать «моя карточка» или «заполнить карточку».
+            "kartochkaZapolnena": status is not None and status != "draft",
+        }
+    )
+    await vhod.prodlit_esli_nado(request, otvet, chelovek)
+    return otvet
 
 
 # =================================================================== картинки
@@ -1363,22 +1395,45 @@ async def vypustit_priglashenie(request: Request):
 
 @app.post("/api/moder/novaya-ssylka")
 async def novaya_ssylka(request: Request):
-    """Пригласительная ссылка для блогера, которого нет в таблице заказчика.
+    """Пригласительная ссылка новому блогеру — **по номеру телефона**.
 
-    Заводит болванку без телефона — номер человек впишет сам, открыв ссылку
-    (экран приглашения это умеет). Ник необязателен: если админ его знает,
-    на экране «Это вы?» будет понятнее.
+    Слово владельца 07.09.2026: «приглашение ссылку генерировать по номеру
+    телефона, не по нику». Раньше заводилась болванка без номера, и человек
+    вписывал его сам, открыв ссылку: ник у болванки был, а привязки к
+    человеку — никакой, и одну ссылку мог открыть кто угодно. Теперь номер
+    известен заранее: код уйдёт SMS ровно на него, а ник необязателен —
+    блогер напишет его в карточке сам.
     """
     kto = await _admin(request)
     if kto is None:
         return _net_prav()
-    nik = ((await request.json()).get("nick") or "").strip()
+    telo = await request.json()
+    telefon = vhod.normalizovat_telefon(telo.get("telefon") or "")
+    nik = (telo.get("nick") or "").strip()
+    if telefon is None:
+        return {"ok": False, "reason": "bad-phone"}
 
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
+            # Номер — это личность: если он уже чей-то, вторую запись под
+            # него заводить нельзя. Ссылка такому человеку выдаётся из
+            # списка приглашений, кнопкой «новая ссылка» в его строке.
+            est = await conn.fetchrow(
+                "select l.id, k.nik from lyudi l"
+                " left join kartochki k on k.chelovek_id = l.id"
+                " where l.telefon = $1",
+                telefon,
+            )
+            if est is not None:
+                return {
+                    "ok": False,
+                    "reason": "phone-taken",
+                    "nik": est["nik"] or "",
+                }
             chelovek_id = await conn.fetchval(
-                "insert into lyudi (telefon, rol, imya) values (null, 'blogger', null)"
-                " returning id"
+                "insert into lyudi (telefon, rol, imya) values ($1, 'blogger', null)"
+                " returning id",
+                telefon,
             )
             await conn.execute(
                 "insert into kartochki (chelovek_id, nik) values ($1, $2)", chelovek_id, nik
@@ -1389,7 +1444,12 @@ async def novaya_ssylka(request: Request):
                 " values ($1,'zavel','ссылка для нового блогера')",
                 kto["id"],
             )
-    return {"ok": True, "ssylka": "/i/" + token}
+    return {
+        "ok": True,
+        "ssylka": "/i/" + token,
+        "telefonMaska": vhod.maska(telefon),
+        "chelovekId": chelovek_id,
+    }
 
 
 @app.post("/api/moder/kod")
@@ -1671,6 +1731,34 @@ async def spisok_pravka(request: Request):
 # =============================================== кто есть кто: назначить модератора
 
 
+# Что писать в журнал: из какой роли в какую. Админ важнее модератора,
+# поэтому «модератор → админ» это назначение админом, а не снятие проверки.
+_OTMETKA = {
+    ("blogger", "moderator"): "naznachil-moderatora",
+    ("moderator", "blogger"): "snyal-moderatora",
+    ("blogger", "admin"): "naznachil-admina",
+    ("moderator", "admin"): "naznachil-admina",
+    ("admin", "moderator"): "snyal-admina",
+    ("admin", "blogger"): "snyal-admina",
+}
+
+
+def _admin_iz_nastroek(telefon: str | None) -> bool:
+    """Этот номер сделан админом настройками сервера, а не нажатием в панели.
+
+    Такому админку снять нажатием нельзя: сервер заводит его заново при
+    каждом старте, и «снял» продержалось бы до первого запроса. Честнее
+    сказать это сразу, чем показать кнопку, которая молча отменится.
+    """
+    if not telefon:
+        return False
+    nash = vhod.normalizovat_telefon(telefon)
+    if nash is None:
+        return False
+    spisok = [nastroyki.VLADELETS_TELEFON, *nastroyki.ADMIN_TELEFONY.split(",")]
+    return any(vhod.normalizovat_telefon(n or "") == nash for n in spisok)
+
+
 @app.get("/api/moder/lyudi")
 async def lyudi_spisok(request: Request, poisk: str | None = None):
     """Кому можно дать проверку карточек. Только админу.
@@ -1700,6 +1788,8 @@ async def lyudi_spisok(request: Request, poisk: str | None = None):
                 "%" + poisk.strip() + "%",
             )
 
+    ya = await _tekushchiy(request)
+
     def vid(r: asyncpg.Record) -> dict:
         return {
             "chelovekId": r["id"],
@@ -1707,6 +1797,10 @@ async def lyudi_spisok(request: Request, poisk: str | None = None):
             "nik": r["nik"],
             "imya": r["imya"],
             "rol": r["rol"],
+            # Эти двое решают, какие кнопки показывать. Считает их сервер:
+            # экран не должен знать про настройки сервера ничего.
+            "izNastroek": _admin_iz_nastroek(r["telefon"]),
+            "etoYa": ya is not None and r["id"] == ya["id"],
         }
 
     return {"moderatory": [vid(r) for r in moderatory], "nayden": [vid(r) for r in nayden]}
@@ -1714,12 +1808,15 @@ async def lyudi_spisok(request: Request, poisk: str | None = None):
 
 @app.post("/api/moder/rol")
 async def naznachit_rol(request: Request):
-    """Дать человеку проверку карточек или забрать её обратно.
+    """Дать человеку права или забрать их. Три роли, все три через эту дверь.
 
-    Даём и снимаем только `moderator`. Админов эта дверь не делает и не
-    разжалует: админ заводится настройками при старте, и подвинуть его
-    нажатием на экране нельзя — иначе один админ случайно оставит сайт
-    без админов вовсе.
+    Слово владельца 07.09.2026: «сделай возможность назначать админа в
+    панели админки». До этого админ заводился только настройками сервера,
+    и клиент не мог добавить себе второго человека без нас.
+
+    Три запрета, и все три — чтобы админка не осталась без хозяина:
+    себе роль не меняют · последнего админа не снимают · админа, заведённого
+    настройками, нажатием не снять (сервер вернёт его при первом же старте).
     """
     kto = await _admin(request)
     if kto is None:
@@ -1729,24 +1826,35 @@ async def naznachit_rol(request: Request):
     rol = str(telo.get("rol", ""))
     if chelovek_id is None:
         return {"ok": False, "reason": "bad-id"}
-    if rol not in ("moderator", "blogger"):
+    if rol not in ("admin", "moderator", "blogger"):
         return {"ok": False, "reason": "bad-role"}
     if chelovek_id == kto["id"]:
         return {"ok": False, "reason": "sam-sebe"}
 
     async with baza.pul().acquire() as conn:
-        byla = await conn.fetchval("select rol from lyudi where id = $1", chelovek_id)
-        if byla is None:
+        chelovek = await conn.fetchrow(
+            "select rol, telefon from lyudi where id = $1", chelovek_id
+        )
+        if chelovek is None:
             return {"ok": False, "reason": "no-person"}
+        byla = chelovek["rol"]
+        if byla == rol:
+            return {"ok": True, "rol": rol}
         if byla == "admin":
-            return {"ok": False, "reason": "eto-admin"}
+            if _admin_iz_nastroek(chelovek["telefon"]):
+                return {"ok": False, "reason": "admin-iz-nastroek"}
+            ostanetsya = await conn.fetchval(
+                "select count(*) from lyudi where rol = 'admin' and udalen_v is null"
+            )
+            if ostanetsya <= 1:
+                return {"ok": False, "reason": "poslednii-admin"}
         async with conn.transaction():
             await conn.execute("update lyudi set rol = $2 where id = $1", chelovek_id, rol)
             await conn.execute(
                 "insert into zhurnal_moderatsii (kartochka_id, kto_id, chto)"
                 " values (null, $1, $2)",
                 kto["id"],
-                "naznachil-moderatora" if rol == "moderator" else "snyal-moderatora",
+                _OTMETKA[(byla, rol)],
             )
     return {"ok": True, "rol": rol}
 

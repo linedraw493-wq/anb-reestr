@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminApi, NetDostupa, type Chelovek } from '../lib/api'
+import { adminApi, NetDostupa, type Chelovek, type Rol } from '../lib/api'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
-   Кто проверяет карточки — слово владельца 07.09.2026: «добавь в админку
-   возможность назначать модератора».
+   Кто что может — слово владельца 07.09.2026: «добавь в админку возможность
+   назначать модератора» и «сделай возможность назначать админа в панели
+   админки».
 
-   Модератор в реестре может ровно две вещи: одобрить карточку или отказать
-   с причиной. Приглашения, резервные коды, списки, сводка и удаление
-   остаются админу — сервер это и проверяет, а не только экран.
+   Модератор проверяет карточки: одобряет или отказывает с причиной. Админ
+   может всё. Права проверяет сервер, экран лишь не показывает лишнего.
 --------------------------------------------------------------------------- */
+
+const NAZVANIE: Record<Rol, string> = {
+  admin: 'администратор',
+  moderator: 'модератор',
+  blogger: 'блогер',
+}
+
+const POCHEMU_NELZYA: Record<string, string> = {
+  'admin-iz-nastroek':
+    'Этот админ заведён настройками сервера — нажатием его не снять: сервер вернёт ему права при первом же запуске.',
+  'poslednii-admin':
+    'Это последний администратор. Сначала назначьте другого — иначе в админку будет не войти.',
+  'sam-sebe': 'Свою роль себе не поменять. Пусть это сделает другой администратор.',
+  'no-person': 'Такого человека уже нет в реестре. Обновите страницу.',
+}
 
 function imenem(c: Chelovek): string {
   return c.nik || c.imya || c.telefon || `без имени (#${c.chelovekId})`
@@ -18,7 +33,7 @@ function imenem(c: Chelovek): string {
 
 export default function Moderatory() {
   const navigate = useNavigate()
-  const [moderatory, setModeratory] = useState<Chelovek[] | null>(null)
+  const [pravaU, setPravaU] = useState<Chelovek[] | null>(null)
   const [nayden, setNayden] = useState<Chelovek[]>([])
   const [poisk, setPoisk] = useState('')
   const [netPrav, setNetPrav] = useState(false)
@@ -28,13 +43,13 @@ export default function Moderatory() {
   const perechitat = useCallback(async (zapros: string) => {
     try {
       const d = await adminApi.lyudi(zapros)
-      setModeratory(d.moderatory)
+      setPravaU(d.moderatory)
       setNayden(d.nayden)
       setNetPrav(false)
     } catch (oshibka) {
       if (oshibka instanceof NetDostupa) setNetPrav(true)
       else setBeda('Сервер не отвечает. Обновите страницу.')
-      setModeratory([])
+      setPravaU([])
     }
   }, [])
 
@@ -45,15 +60,17 @@ export default function Moderatory() {
     return () => clearTimeout(t)
   }, [poisk, perechitat])
 
-  async function pomenyat(c: Chelovek, rol: 'moderator' | 'blogger') {
+  async function pomenyat(c: Chelovek, rol: Rol) {
+    if (rol === 'blogger' && c.rol === 'admin') {
+      if (!confirm(`Снять права администратора с ${imenem(c)}? Он останется обычным блогером.`))
+        return
+    }
     setZanyat(true)
     setBeda(null)
     const r = await adminApi.naznachit(c.chelovekId, rol)
     setZanyat(false)
     if (!r.ok) {
-      if (r.reason === 'eto-admin') setBeda('Это админ — его роль отсюда не меняют.')
-      else if (r.reason === 'sam-sebe') setBeda('Свою роль себе не поменять.')
-      else setBeda('Не вышло поменять роль. Попробуйте ещё раз.')
+      setBeda(POCHEMU_NELZYA[r.reason ?? ''] ?? 'Не вышло поменять роль. Попробуйте ещё раз.')
       return
     }
     await perechitat(poisk)
@@ -65,7 +82,7 @@ export default function Moderatory() {
         <Shapka />
         <header className="form-head">
           <h1>Сюда нельзя</h1>
-          <p className="sub">Модераторов назначает администратор Ассоциации.</p>
+          <p className="sub">Права раздаёт администратор Ассоциации.</p>
         </header>
         <button className="btn" onClick={() => navigate('/moderator')}>
           К проверке карточек
@@ -74,7 +91,7 @@ export default function Moderatory() {
     )
   }
 
-  if (moderatory === null) {
+  if (pravaU === null) {
     return (
       <div className="form-page">
         <div className="spinner" role="status" aria-label="Загружаем список" />
@@ -82,15 +99,18 @@ export default function Moderatory() {
     )
   }
 
+  const moderatorov = pravaU.filter((c) => c.rol === 'moderator').length
+
   return (
     <div className="form-page">
       <Shapka />
       <header className="form-head">
         <div className="wordmark">Ассоциация блогеров · права</div>
-        <h1>Модераторы</h1>
+        <h1>Права</h1>
         <p className="sub">
-          Модератор проверяет карточки: одобряет их или отказывает с причиной. Больше он не может
-          ничего — ни приглашений, ни кодов, ни списков, ни удаления.
+          <b>Модератор</b> проверяет карточки: одобряет их или отказывает с причиной. Больше он не
+          может ничего. <b>Администратор</b> может всё, что есть в админке, — приглашения, коды,
+          списки, сводку и раздачу прав.
         </p>
       </header>
 
@@ -104,31 +124,51 @@ export default function Moderatory() {
       )}
 
       <ul className="prig-spisok">
-        {moderatory.map((c) => (
+        {pravaU.map((c) => (
           <li key={c.chelovekId}>
             <span className="prig-nik">{imenem(c)}</span>
             <span className={`pill ${c.rol === 'admin' ? 'ok' : 'neutral'}`}>
-              {c.rol === 'admin' ? 'администратор' : 'модератор'}
+              {NAZVANIE[c.rol]}
             </span>
+            {c.etoYa && <span className="pill say">это вы</span>}
             {c.telefon && <span className="prig-tel">{c.telefon}</span>}
             <span className="prig-knopki">
-              {c.rol === 'moderator' ? (
+              {c.etoYa ? (
+                <span className="fine">свою роль себе не меняют</span>
+              ) : c.rol === 'admin' && c.izNastroek ? (
+                <span className="fine">заведён настройками сервера</span>
+              ) : c.rol === 'admin' ? (
                 <button
                   className="linkbtn"
                   disabled={zanyat}
                   onClick={() => void pomenyat(c, 'blogger')}
                 >
-                  снять проверку
+                  снять админа
                 </button>
               ) : (
-                <span className="fine">заведён настройками</span>
+                <>
+                  <button
+                    className="linkbtn"
+                    disabled={zanyat}
+                    onClick={() => void pomenyat(c, 'admin')}
+                  >
+                    сделать админом
+                  </button>
+                  <button
+                    className="linkbtn"
+                    disabled={zanyat}
+                    onClick={() => void pomenyat(c, 'blogger')}
+                  >
+                    снять проверку
+                  </button>
+                </>
               )}
             </span>
           </li>
         ))}
       </ul>
 
-      {moderatory.filter((c) => c.rol === 'moderator').length === 0 && (
+      {moderatorov === 0 && (
         <p className="fine">
           Модераторов пока нет — карточки проверяют администраторы. Найдите человека ниже и дайте
           ему проверку.
@@ -148,8 +188,8 @@ export default function Moderatory() {
 
       {poisk.trim() === '' ? (
         <p className="fine">
-          Начните вводить ник или номер — покажем, кого можно назначить. Назначать можно только тех,
-          кто уже есть в реестре.
+          Начните вводить ник или номер — покажем, кому можно дать права. Дать их можно только тому,
+          кто уже есть в реестре: и модератор, и админ входят своим номером, как все.
         </p>
       ) : nayden.length === 0 ? (
         <div className="pusto">
@@ -174,6 +214,13 @@ export default function Moderatory() {
                   onClick={() => void pomenyat(c, 'moderator')}
                 >
                   сделать модератором
+                </button>
+                <button
+                  className="linkbtn"
+                  disabled={zanyat}
+                  onClick={() => void pomenyat(c, 'admin')}
+                >
+                  сделать админом
                 </button>
               </span>
             </li>

@@ -19,7 +19,7 @@ import { ktoYa, vyyti, type Ya } from '../lib/api'
 const ADMINKA: { put: string; imya: string; tolkoAdmin?: boolean }[] = [
   { put: '/moderator', imya: 'Проверка карточек' },
   { put: '/moderator/priglasheniya', imya: 'Приглашения', tolkoAdmin: true },
-  { put: '/moderator/lyudi', imya: 'Модераторы', tolkoAdmin: true },
+  { put: '/moderator/lyudi', imya: 'Права', tolkoAdmin: true },
   { put: '/moderator/spiski', imya: 'Списки', tolkoAdmin: true },
   { put: '/moderator/svodka', imya: 'Сводка', tolkoAdmin: true },
 ]

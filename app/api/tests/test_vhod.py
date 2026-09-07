@@ -109,3 +109,82 @@ async def test_perebor_nomerov_ostanavlivaetsya(klient, baza_conn, monkeypatch):
     main._stuk.clear()
 
     assert "too-often" in otvety
+
+
+async def test_perebor_schitaetsya_po_nastoyashchemu_adresu(klient, monkeypatch):
+    """Баг 07.09.2026: за проксей у всех посетителей один адрес.
+
+    На бою сервер стоит за Vercel, и `request.client.host` там общий. Значит
+    десяток попыток входа в минуту делился на весь сайт разом. Настоящий
+    адрес приходит в `x-forwarded-for` — по нему и считаем.
+    """
+    from app import main, nastroyki
+
+    monkeypatch.setattr(nastroyki, "POPYTOK_S_ADRESA_V_MINUTU", 3)
+    main._stuk.clear()
+
+    # первый человек выбирает свой запас
+    for i in range(5):
+        await klient.post(
+            "/api/auth/start",
+            json={"phone": f"+7702000{i:04d}"},
+            headers={"x-forwarded-for": "5.5.5.5"},
+        )
+    # второй приходит следом — и его пускают: адрес другой
+    sosed = await klient.post(
+        "/api/auth/start",
+        json={"phone": "+77029999999"},
+        headers={"x-forwarded-for": "6.6.6.6, 10.0.0.1"},
+    )
+    main._stuk.clear()
+    assert sosed.json().get("reason") != "too-often"
+
+
+async def test_vhod_prodlevaetsya_sam(klient, baza_conn):
+    """Слово владельца 07.09.2026: «чтобы запоминал вход в аккаунт».
+
+    Сессия живёт 60 дней от последнего захода, а не от первого: заход на
+    /api/me отодвигает срок и переставляет cookie.
+    """
+    from .conftest import otkryt_sessiyu, zavesti_cheloveka
+
+    kto = await zavesti_cheloveka(baza_conn, "+77031111111")
+    znachenie = await otkryt_sessiyu(baza_conn, kto)  # проверочная сессия живёт сутки
+    klient.cookies.set("sessiya", znachenie)
+
+    bylo = await baza_conn.fetchval(
+        "select godna_do from sessii where chelovek_id = $1", kto
+    )
+    otvet = await klient.get("/api/me")
+    assert otvet.json()["vnutri"] is True
+    stalo = await baza_conn.fetchval(
+        "select godna_do from sessii where chelovek_id = $1", kto
+    )
+    assert stalo > bylo
+    # и браузеру сказали держать её столько же
+    assert "sessiya=" in otvet.headers.get("set-cookie", "")
+    klient.cookies.clear()
+
+
+async def test_svezhiy_vhod_ne_dvigayut(klient, baza_conn):
+    """Продление не должно ходить в базу на каждую страницу."""
+    from datetime import datetime, timedelta, timezone
+
+    from .conftest import otkryt_sessiyu, otpechatok, zavesti_cheloveka
+
+    kto = await zavesti_cheloveka(baza_conn, "+77031111112")
+    znachenie = await otkryt_sessiyu(baza_conn, kto)
+    dolgo = datetime.now(timezone.utc) + timedelta(days=59)
+    await baza_conn.execute(
+        "update sessii set godna_do = $2 where otpechatok = $1", otpechatok(znachenie), dolgo
+    )
+    klient.cookies.set("sessiya", znachenie)
+
+    otvet = await klient.get("/api/me")
+    assert otvet.json()["vnutri"] is True
+    stalo = await baza_conn.fetchval(
+        "select godna_do from sessii where chelovek_id = $1", kto
+    )
+    assert stalo == dolgo
+    assert "sessiya=" not in otvet.headers.get("set-cookie", "")
+    klient.cookies.clear()

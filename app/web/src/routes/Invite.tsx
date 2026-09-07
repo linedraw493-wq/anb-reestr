@@ -98,7 +98,9 @@ export default function Invite() {
           {initials(invite.nick)}
         </div>
         <div>
-          <div className="nm">{invite.nick}</div>
+          {/* Ник теперь необязателен: ссылку выдают на номер, а ник блогер
+              пишет сам в карточке. Пустую строку вместо имени не показываем. */}
+          <div className="nm">{invite.nick || 'Новый блогер'}</div>
           <div className="mt">
             {invite.invitedAt ? `Приглашение от ${invite.invitedAt}` : 'Личное приглашение'}
           </div>

@@ -3,7 +3,14 @@
 Порядок такой (решения 01–02.09.2026):
   первый раз — по личной одноразовой ссылке; дальше — телефон и код.
 Код живёт пять минут, попыток пять — теперь считаем в базе, а не в браузере.
-Сессия живёт 60 дней, в cookie уезжает значение, в базе лежит отпечаток.
+
+**Как запоминается вход** (слово владельца 07.09.2026: «сделай хэширование,
+чтобы запоминал вход в аккаунт»). При входе заводится случайный ключ на 32
+байта. Сам ключ уезжает в cookie браузера и живёт там 60 дней; в базе от
+него лежит только **отпечаток** — HMAC-SHA256 на тайной соли (`OTP_SECRET`).
+Из отпечатка ключ не достать, поэтому украденная база чужих входов не даёт.
+Каждый заход человека продлевает срок: пока он заходит хотя бы раз в
+полтора месяца, код заново у него не спросят никогда.
 """
 
 import hashlib
@@ -200,19 +207,52 @@ async def otkryt_sessiyu(conn: asyncpg.Connection, chelovek_id: int) -> str:
 
 
 async def kto_zashel(request: Request) -> asyncpg.Record | None:
-    """Кто сейчас в этом запросе. None — никто."""
+    """Кто сейчас в этом запросе. None — никто.
+
+    Вместе с человеком отдаём срок его сессии: по нему решается, пора ли её
+    продлить (`prodlit_esli_nado`).
+    """
     znachenie = request.cookies.get(COOKIE)
     if not znachenie:
         return None
     async with baza.pul().acquire() as conn:
         return await conn.fetchrow(
             """
-            select l.id, l.telefon, l.rol, l.imya
+            select l.id, l.telefon, l.rol, l.imya,
+                   s.id as sessiya_id, s.godna_do as sessiya_do
             from sessii s join lyudi l on l.id = s.chelovek_id
             where s.otpechatok = $1 and s.godna_do > now()
             """,
             otpechatok(znachenie),
         )
+
+
+# Продлеваем не на каждый заход, а когда от срока осталось меньше этого.
+# Иначе на каждую страницу шёл бы лишний запрос в базу, а толку — ноль.
+PRODLEVAT_KOGDA_OSTALOS_DNEY = 50
+
+
+async def prodlit_esli_nado(request: Request, otvet, chelovek: asyncpg.Record) -> None:
+    """Продлить вход, если срок подходит к концу. Иначе не трогать.
+
+    Без этого человек, зашедший однажды, ровно через 60 дней оказывался
+    снаружи и не понимал почему. Теперь срок отсчитывается от последнего
+    захода, а не от первого: cookie переставляется на те же 60 дней вперёд,
+    и в базе двигается та же дата.
+    """
+    znachenie = request.cookies.get(COOKIE)
+    if not znachenie or chelovek is None:
+        return
+    ostalos = chelovek["sessiya_do"] - teper()
+    if ostalos > timedelta(days=PRODLEVAT_KOGDA_OSTALOS_DNEY):
+        return
+    async with baza.pul().acquire() as conn:
+        await conn.execute(
+            "update sessii set godna_do = $2 where id = $1",
+            chelovek["sessiya_id"],
+            teper() + timedelta(days=nastroyki.ZHIZN_SESSII_DNEY),
+        )
+    postavit_cookie(otvet, znachenie)
 
 
 async def zakryt_sessiyu(znachenie: str) -> None:

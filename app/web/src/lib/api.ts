@@ -150,12 +150,18 @@ export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi
 
 /* ------------------------------------------------- назначение модератора */
 
+export type Rol = 'blogger' | 'moderator' | 'admin'
+
 export type Chelovek = {
   chelovekId: number
   telefon: string | null
   nik: string | null
   imya: string | null
-  rol: 'blogger' | 'moderator' | 'admin'
+  rol: Rol
+  /** админ заведён настройками сервера — нажатием его не снять */
+  izNastroek: boolean
+  /** это вы: свою роль себе не меняют */
+  etoYa: boolean
 }
 
 /**
@@ -172,6 +178,6 @@ export const adminApi = {
     return (await otvet.json()) as { moderatory: Chelovek[]; nayden: Chelovek[] }
   },
 
-  naznachit: (chelovekId: number, rol: 'moderator' | 'blogger') =>
+  naznachit: (chelovekId: number, rol: Rol) =>
     post<{ ok: boolean; reason?: string }>('/api/moder/rol', { chelovekId, rol }),
 }

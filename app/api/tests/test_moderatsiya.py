@@ -130,7 +130,7 @@ async def test_moderatoru_zakryto_vse_ostalnoe(klient, baza_conn):
     for adres, telo in (
         ("/api/moder/create", {"telefon": "+77020000014", "nick": "@ne_zavedu"}),
         ("/api/moder/priglashenie", {"chelovekId": 1}),
-        ("/api/moder/novaya-ssylka", {"nick": "@ne_vydam"}),
+        ("/api/moder/novaya-ssylka", {"telefon": "+77020000099", "nick": "@ne_vydam"}),
         ("/api/moder/kod", {"chelovekId": 1}),
         ("/api/moder/skryt", {"id": 1, "skryt": True}),
         ("/api/moder/update", {"id": 1}),
@@ -169,21 +169,20 @@ async def test_admin_naznachaet_i_snimaet_moderatora(klient, baza_conn):
     klient.cookies.clear()
 
 
-async def test_admina_i_sebya_rolyu_ne_tronut(klient, baza_conn):
-    """Иначе один админ случайно оставит сайт без админов вовсе."""
+async def test_sebe_rol_ne_menyayut(klient, baza_conn):
+    """Себе — никогда: иначе единственный админ разжалует сам себя.
+
+    Чужого админа снять можно (07.09.2026, «назначать админа в панели»), но
+    только если он не заведён настройками и не последний.
+    """
     ya = await _moderator(klient, baza_conn, "+77020000017")
-    drugoy_admin = await zavesti_cheloveka(baza_conn, "+77020000018", rol="admin")
 
     sam = await klient.post("/api/moder/rol", json={"chelovekId": ya, "rol": "blogger"})
     assert sam.json() == {"ok": False, "reason": "sam-sebe"}
+    assert await baza_conn.fetchval("select rol from lyudi where id = $1", ya) == "admin"
 
-    chuzhoy = await klient.post(
-        "/api/moder/rol", json={"chelovekId": drugoy_admin, "rol": "blogger"}
-    )
-    assert chuzhoy.json() == {"ok": False, "reason": "eto-admin"}
-    assert await baza_conn.fetchval(
-        "select rol from lyudi where id = $1", drugoy_admin
-    ) == "admin"
+    krivaya = await klient.post("/api/moder/rol", json={"chelovekId": ya, "rol": "korol"})
+    assert krivaya.json() == {"ok": False, "reason": "bad-role"}
     klient.cookies.clear()
 
 
@@ -194,3 +193,118 @@ async def test_vhoda_po_parolyu_bolshe_net(klient):
     # Двери нет вовсе: 404, либо 405 — под этим адресом остался только
     # раздатчик собранных страниц, а он отвечает на GET.
     assert otvet.status_code in (404, 405)
+
+
+# ------------------------------------------ админ из панели (07.09.2026)
+
+
+async def test_admin_naznachaet_admina(klient, baza_conn):
+    """Слово владельца: «сделай возможность назначать админа в панели»."""
+    await _moderator(klient, baza_conn, "+77020000020")
+    kto = await zavesti_cheloveka(baza_conn, "+77020000021", imya="Будущий админ")
+
+    dal = await klient.post("/api/moder/rol", json={"chelovekId": kto, "rol": "admin"})
+    assert dal.json()["ok"] is True
+    assert await baza_conn.fetchval("select rol from lyudi where id = $1", kto) == "admin"
+
+    # и снять можно тем же путём — админов на сайте больше одного
+    snyal = await klient.post("/api/moder/rol", json={"chelovekId": kto, "rol": "blogger"})
+    assert snyal.json()["ok"] is True
+    assert await baza_conn.fetchval("select rol from lyudi where id = $1", kto) == "blogger"
+    klient.cookies.clear()
+
+
+async def test_admina_iz_nastroek_nazhatiem_ne_snyat(klient, baza_conn, monkeypatch):
+    """Сервер вернёт ему права при первом старте — врать про это нельзя."""
+    from app import nastroyki
+
+    await _moderator(klient, baza_conn, "+77020000022")
+    iz_nastroek = await zavesti_cheloveka(baza_conn, "+77020000023", rol="admin")
+    monkeypatch.setattr(nastroyki, "ADMIN_TELEFONY", "+77020000023")
+
+    otvet = await klient.post("/api/moder/rol", json={"chelovekId": iz_nastroek, "rol": "blogger"})
+    assert otvet.json() == {"ok": False, "reason": "admin-iz-nastroek"}
+    assert await baza_conn.fetchval(
+        "select rol from lyudi where id = $1", iz_nastroek
+    ) == "admin"
+
+    # и в списке он помечен, чтобы экран не показывал кнопку впустую
+    spisok = (await klient.get("/api/moder/lyudi")).json()["moderatory"]
+    nash = [c for c in spisok if c["chelovekId"] == iz_nastroek][0]
+    assert nash["izNastroek"] is True
+    klient.cookies.clear()
+
+
+async def test_poslednego_admina_ne_snyat(klient, baza_conn, monkeypatch):
+    """Иначе в админку станет не войти вовсе, и чинить это только руками."""
+    from app import nastroyki
+
+    monkeypatch.setattr(nastroyki, "ADMIN_TELEFONY", "")
+    monkeypatch.setattr(nastroyki, "VLADELETS_TELEFON", "")
+    # все нынешние админы на минуту становятся блогерами, кроме двоих ниже
+    await baza_conn.execute("update lyudi set rol = 'blogger' where rol = 'admin'")
+    ya = await zavesti_cheloveka(baza_conn, "+77020000024", rol="admin")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, ya))
+    drugoy = await zavesti_cheloveka(baza_conn, "+77020000025", rol="admin")
+
+    # пока админов двое — снять можно
+    assert (await klient.post(
+        "/api/moder/rol", json={"chelovekId": drugoy, "rol": "blogger"}
+    )).json()["ok"] is True
+
+    # остался один, и это я: себе роль не меняют
+    assert (await klient.post(
+        "/api/moder/rol", json={"chelovekId": ya, "rol": "blogger"}
+    )).json() == {"ok": False, "reason": "sam-sebe"}
+
+    # а если снимать последнего чужими руками — запрет по счёту
+    vtoroy = await zavesti_cheloveka(baza_conn, "+77020000026", rol="admin")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, vtoroy))
+    await klient.post("/api/moder/rol", json={"chelovekId": ya, "rol": "blogger"})
+    poslednii = await klient.post(
+        "/api/moder/rol", json={"chelovekId": vtoroy, "rol": "blogger"}
+    )
+    assert poslednii.json()["reason"] in ("sam-sebe", "poslednii-admin")
+    klient.cookies.clear()
+
+
+# ------------------------------- ссылка-приглашение по номеру (07.09.2026)
+
+
+async def test_novaya_ssylka_zavoditsya_na_nomer(klient, baza_conn):
+    """Слово владельца: «приглашение ссылку генерировать по номеру телефона»."""
+    await _moderator(klient, baza_conn, "+77020000030")
+    telefon = "+77020000031"
+
+    otvet = await klient.post(
+        "/api/moder/novaya-ssylka", json={"telefon": telefon, "nick": "@po_nomeru"}
+    )
+    dannye = otvet.json()
+    assert dannye["ok"] is True and dannye["ssylka"].startswith("/i/")
+
+    chelovek_id = await baza_conn.fetchval("select id from lyudi where telefon = $1", telefon)
+    assert chelovek_id is not None
+    # приглашение выписано именно ему, и номер в нём уже есть
+    zhivo = await klient.get("/api/invite/" + dannye["ssylka"].removeprefix("/i/"))
+    assert zhivo.json()["phoneMasked"] != ""
+    klient.cookies.clear()
+
+
+async def test_novaya_ssylka_ne_dublirovat_nomer(klient, baza_conn):
+    """Номер — это личность: вторую запись под тот же номер не заводим."""
+    await _moderator(klient, baza_conn, "+77020000032")
+    kto = await zavesti_cheloveka(baza_conn, "+77020000033")
+    await zavesti_kartochku(baza_conn, kto, "@uzhe_est", 1000)
+
+    zanyat = await klient.post("/api/moder/novaya-ssylka", json={"telefon": "+77020000033"})
+    assert zanyat.json()["reason"] == "phone-taken"
+    assert zanyat.json()["nik"] == "@uzhe_est"
+
+    krivoy = await klient.post("/api/moder/novaya-ssylka", json={"telefon": "12345"})
+    assert krivoy.json()["reason"] == "bad-phone"
+
+    skolko = await baza_conn.fetchval(
+        "select count(*) from lyudi where telefon = $1", "+77020000033"
+    )
+    assert skolko == 1
+    klient.cookies.clear()

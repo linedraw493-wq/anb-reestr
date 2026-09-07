@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatAsTyped, toE164 } from '../lib/phone'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
@@ -64,11 +65,14 @@ export default function Priglasheniya() {
   const [skopirovan, setSkopirovan] = useState<number | null>(null)
   const [kod, setKod] = useState<{ kto: string; kod: string; minut: number } | null>(null)
 
-  // Ссылка для нового блогера, которого нет в таблице заказчика.
+  // Ссылка для нового блогера, которого нет в таблице заказчика. Заводится
+  // по номеру телефона — слово владельца 07.09.2026. Ник необязателен.
   const [formNovoy, setFormNovoy] = useState(false)
+  const [telefonNovogo, setTelefonNovogo] = useState('')
   const [nikNovogo, setNikNovogo] = useState('')
   const [novaya, setNovaya] = useState<string | null>(null)
   const [novayaSkopirovana, setNovayaSkopirovana] = useState(false)
+  const [bedaNovoy, setBedaNovoy] = useState<string | null>(null)
 
   const perechitat = useCallback(async () => {
     const r = await fetch('/api/moder/priglasheniya', { credentials: 'same-origin' })
@@ -124,23 +128,39 @@ export default function Priglasheniya() {
     await perechitat()
   }
 
+  const telefonNovoyE164 = toE164(telefonNovogo)
+
   async function sozdatNovuyu() {
+    if (telefonNovoyE164 === null) {
+      setBedaNovoy('Впишите номер целиком — на него уйдёт код.')
+      return
+    }
     setZanyat(true)
+    setBedaNovoy(null)
     const r = await fetch('/api/moder/novaya-ssylka', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nick: nikNovogo.trim() }),
+      body: JSON.stringify({ telefon: telefonNovoyE164, nick: nikNovogo.trim() }),
       credentials: 'same-origin',
     })
-    const d = (await r.json()) as { ok: boolean; ssylka?: string }
+    const d = (await r.json()) as { ok: boolean; ssylka?: string; reason?: string; nik?: string }
     setZanyat(false)
     if (d.ok && d.ssylka) {
       setNovaya(polnaya(d.ssylka))
       setNovayaSkopirovana(false)
       setFormNovoy(false)
+      setTelefonNovogo('')
       setNikNovogo('')
       await perechitat()
+      return
     }
+    if (d.reason === 'phone-taken')
+      setBedaNovoy(
+        `Этот номер уже в реестре${d.nik ? ` — ${d.nik}` : ''}. Ссылку ему выдайте в списке ниже, ` +
+          'кнопкой «новая ссылка» в его строке.',
+      )
+    else if (d.reason === 'bad-phone') setBedaNovoy('Проверьте номер — такой не подходит.')
+    else setBedaNovoy('Не получилось создать ссылку. Попробуйте ещё раз.')
   }
 
   async function skopirovatNovuyu() {
@@ -233,32 +253,59 @@ export default function Priglasheniya() {
         ) : (
           <div className="novaya-forma">
             <input
+              className={`input${telefonNovogo !== '' && telefonNovoyE164 === null ? ' bad' : ''}`}
+              type="tel"
+              inputMode="tel"
+              autoFocus
+              placeholder="+7 700 000 00 00"
+              aria-label="Номер телефона нового блогера"
+              value={telefonNovogo}
+              onChange={(e) => {
+                setTelefonNovogo(formatAsTyped(e.target.value))
+                setBedaNovoy(null)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && void sozdatNovuyu()}
+            />
+            <input
               className="input"
               type="text"
-              autoFocus
-              placeholder="Ник блогера (можно пусто)"
+              placeholder="Ник (можно пусто)"
               aria-label="Ник нового блогера"
               value={nikNovogo}
               onChange={(e) => setNikNovogo(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void sozdatNovuyu()}
             />
-            <button className="btn small" disabled={zanyat} onClick={() => void sozdatNovuyu()}>
+            <button
+              className="btn small"
+              disabled={zanyat || telefonNovoyE164 === null}
+              onClick={() => void sozdatNovuyu()}
+            >
               Создать
             </button>
             <button
               className="linkbtn"
               onClick={() => {
                 setFormNovoy(false)
+                setTelefonNovogo('')
                 setNikNovogo('')
+                setBedaNovoy(null)
               }}
             >
               отмена
             </button>
           </div>
         )}
+        {bedaNovoy && (
+          <div className="note err" role="alert">
+            <span className="dot" aria-hidden="true">
+              !
+            </span>
+            <span>{bedaNovoy}</span>
+          </div>
+        )}
         <p className="fine">
-          Для тех, кого нет в таблице заказчика. Ссылка одноразовая, номер блогер впишет сам при
-          входе.
+          Для тех, кого нет в таблице заказчика. Ссылка одноразовая и заводится на номер: код
+          придёт SMS ровно на него, а ник блогер впишет в карточке сам.
         </p>
       </div>
 

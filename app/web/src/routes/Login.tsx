@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { saveFlow } from '../lib/flow'
+import { vspomnitNomer, zabytNomer, zapomnitNomer } from '../lib/pamyat'
 import { formatAsTyped, toE164 } from '../lib/phone'
 import { Err, Shell } from '../ui/Shell'
 
 /** Повторный вход — без ссылки, по номеру. Решение 02.09.2026. */
 export default function Login() {
   const navigate = useNavigate()
-  const [typed, setTyped] = useState('')
+  // Номер с прошлого раза — чтобы не набирать его заново. Сам вход держится
+  // cookie и живёт 60 дней; это на случай, когда человек вышел сам.
+  const zapomnennyy = vspomnitNomer()
+  const [typed, setTyped] = useState(() => formatAsTyped(zapomnennyy ?? ''))
+  const [pokazatChuzhoy, setPokazatChuzhoy] = useState(zapomnennyy !== null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unknown, setUnknown] = useState(false)
@@ -40,6 +45,7 @@ export default function Login() {
       return
     }
 
+    zapomnitNomer(phone)
     saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked })
     navigate('/kod')
   }
@@ -68,6 +74,21 @@ export default function Login() {
           }}
           onKeyDown={(e) => e.key === 'Enter' && send()}
         />
+        {pokazatChuzhoy && (
+          <p className="fine">
+            Номер с прошлого раза.{' '}
+            <button
+              className="linkbtn"
+              onClick={() => {
+                zabytNomer()
+                setTyped('')
+                setPokazatChuzhoy(false)
+              }}
+            >
+              Это не мой номер
+            </button>
+          </p>
+        )}
       </div>
 
       {unknown && (
