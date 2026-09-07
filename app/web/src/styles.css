@@ -711,40 +711,6 @@ input {
   }
 }
 
-/* Меню админки: список выпадает под кнопкой. */
-.menyu {
-  position: relative;
-  display: inline-flex;
-}
-
-.menyu-spisok {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  min-width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.menyu-punkt {
-  padding: 10px 14px;
-  border: 0;
-  background: none;
-  text-align: left;
-  font: inherit;
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.menyu-punkt:hover {
-  background: var(--accent-soft);
-}
-
 /* Пока грузим первую страницу — места под карточки, а не пустой экран.
    Полоса света бежит по ним слева направо: видно, что не зависло. */
 .kk.skelet {
