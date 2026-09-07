@@ -76,10 +76,20 @@ export default function SpiskiEkran() {
       body: JSON.stringify({ tip: vkladka, ...telo }),
       credentials: 'same-origin',
     })
-    const d = (await otvet.json()) as { ok: boolean; reason?: string; est?: string }
+    const d = (await otvet.json()) as {
+      ok: boolean
+      reason?: string
+      est?: string
+      skolko?: number
+    }
     setZanyat(false)
     if (!d.ok) {
       if (d.reason === 'zanyato') setBeda(`«${d.est}» уже есть в списке.`)
+      else if (d.reason === 'zanyato-kartochkami')
+        setBeda(
+          `Не удалить: строка стоит в ${d.skolko} карточк${d.skolko === 1 ? 'е' : 'ах'}. ` +
+            'Её можно только скрыть — тогда из выбора пропадёт, а у старых карточек останется.',
+        )
       else if (d.reason === 'bad-name')
         setBeda(`Название не подходит: от ${MIN_DLINA} до ${MAX_DLINA} символов, и с буквами.`)
       else setBeda('Не вышло сохранить. Попробуйте ещё раз.')
@@ -213,13 +223,28 @@ export default function SpiskiEkran() {
             >
               {vidno(s) ? 'скрыть' : 'вернуть'}
             </button>
+            {/* Удалить можно только пустую строку: занятую сервер не отдаст,
+                и правильно — иначе поедут чужие карточки. */}
+            {s.skolko === 0 && (
+              <button
+                className="linkbtn opasno"
+                disabled={zanyat}
+                onClick={() => {
+                  if (confirm(`Удалить «${s.nazvanie}» насовсем? Она нигде не стоит.`))
+                    void pravka({ chto: 'udalit', id: s.id })
+                }}
+              >
+                удалить
+              </button>
+            )}
           </li>
         ))}
       </ul>
 
       <p className="fine">
         Число рядом — в скольких карточках строка стоит сейчас. Переименование безопасно: карточки
-        не трогаются, меняется только надпись. Название — от {MIN_DLINA} до {MAX_DLINA} символов.
+        не трогаются, меняется только надпись. Удалить можно только пустую строку (число 0); занятую
+        — скрыть. Название — от {MIN_DLINA} до {MAX_DLINA} символов.
       </p>
     </div>
   )

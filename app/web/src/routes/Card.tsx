@@ -219,16 +219,20 @@ export default function Card() {
               {nado('nick') && <span className="trebuem-txt">Без ника карточку не найдут</span>}
             </label>
 
-            <label className="fld">
-              <span className="field-label">Имя и фамилия · по желанию</span>
+            <label className={`fld${nado('fio')}`}>
+              <span className="field-label">Имя и фамилия</span>
               <input
-                className="input"
+                className={`input${nado('fio')}`}
                 value={k.fio}
                 maxLength={120}
                 placeholder="Айгерим Сериковна"
                 onChange={(e) => set('fio', e.target.value)}
               />
-              <span className="fine">Рекламодателю проще писать человеку по имени, чем нику.</span>
+              {nado('fio') ? (
+                <span className="trebuem-txt">Напишите, как к вам обращаться</span>
+              ) : (
+                <span className="fine">Рекламодателю проще писать человеку по имени, чем нику.</span>
+              )}
             </label>
 
             <label className="fld">

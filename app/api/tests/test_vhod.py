@@ -239,3 +239,45 @@ async def test_spiski_proveryayut_nazvanie(klient, baza_conn):
     est = [r["nazvanie"] for r in await baza_conn.fetch("select nazvanie from tematiki")]
     assert "Рыбалка и охота" in est
     klient.cookies.clear()
+
+
+async def test_pustuyu_stroku_spiska_mozhno_udalit(klient, baza_conn):
+    """Слово владельца 07.09.2026: «удали все лишние тематики, всё почисти».
+
+    Чистить должен уметь сам админ. Но только пустое: занятую строку
+    удалять нельзя — поедут карточки, где она стоит.
+    """
+    from .conftest import otkryt_sessiyu, zavesti_cheloveka, zavesti_kartochku
+
+    admin = await zavesti_cheloveka(baza_conn, "+77040000002", rol="admin")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, admin))
+
+    await klient.post(
+        "/api/moder/spisok",
+        json={"tip": "tematika", "chto": "dobavit", "nazvanie": "Пустая тема"},
+    )
+    pustaya = await baza_conn.fetchval("select id from tematiki where nazvanie = 'Пустая тема'")
+    udalil = await klient.post(
+        "/api/moder/spisok", json={"tip": "tematika", "chto": "udalit", "id": pustaya}
+    )
+    assert udalil.json()["ok"] is True
+    assert await baza_conn.fetchval("select id from tematiki where id = $1", pustaya) is None
+
+    # а занятую — не отдаём
+    await klient.post(
+        "/api/moder/spisok",
+        json={"tip": "tematika", "chto": "dobavit", "nazvanie": "Занятая тема"},
+    )
+    zanyataya = await baza_conn.fetchval("select id from tematiki where nazvanie = 'Занятая тема'")
+    kto = await zavesti_cheloveka(baza_conn, "+77040000003")
+    kid = await zavesti_kartochku(baza_conn, kto, "@s_temoy", 1000)
+    await baza_conn.execute(
+        "insert into kartochka_tematiki (kartochka_id, tematika_id) values ($1,$2)", kid, zanyataya
+    )
+
+    otkaz = await klient.post(
+        "/api/moder/spisok", json={"tip": "tematika", "chto": "udalit", "id": zanyataya}
+    )
+    assert otkaz.json()["reason"] == "zanyato-kartochkami"
+    assert await baza_conn.fetchval("select id from tematiki where id = $1", zanyataya) is not None
+    klient.cookies.clear()

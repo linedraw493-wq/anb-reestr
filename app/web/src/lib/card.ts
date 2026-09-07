@@ -4,7 +4,7 @@ export type Istochnik = 'screen' | 'words'
 export type Karta = {
   id: string
   nick: string
-  /** имя и фамилия — по желанию, 07.09.2026 */
+  /** имя и фамилия — обязательно, 07.09.2026 */
   fio: string
   /** короткий рассказ о себе, до 400 знаков */
   bio: string
@@ -119,6 +119,9 @@ export const pustayaKarta: Karta = {
 /** Обязательные поля. По ним считается «готово N из M». */
 export const OBYAZATELNO: { key: string; label: string; done: (k: Karta) => boolean }[] = [
   { key: 'nick', label: 'Ник', done: (k) => k.nick.trim().length > 1 },
+  // Имя обязательно со слова владельца 07.09.2026. Рекламодатель пишет
+  // человеку, а не нику: без имени разговор начинается неловко.
+  { key: 'fio', label: 'Имя и фамилия', done: (k) => k.fio.trim().length > 1 },
   { key: 'ssylki', label: 'Ссылка на профиль', done: (k) => k.ssylki.length > 0 },
   { key: 'followers', label: 'Подписчики', done: (k) => k.followers.trim() !== '' },
   { key: 'reach', label: 'Охват', done: (k) => k.reach.trim() !== '' },

@@ -1637,10 +1637,11 @@ _TABLICY = {
 
 @app.post("/api/moder/spisok")
 async def spisok_pravka(request: Request):
-    """Одна точка на три дела: добавить, переименовать, скрыть.
+    """Одна точка на четыре дела: добавить, переименовать, скрыть, удалить.
 
-    Удаления нет намеренно: удалишь тематику — поедут все карточки, где она
-    стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
+    Удаление есть, но только для пустых строк: если тематика стоит хоть в
+    одной карточке, сервер откажет. У занятых остаётся «скрыть» — из выбора
+    пропадает, у старых карточек сохраняется.
 
     Слияние убрано 07.09.2026 словом владельца («убери слить в городе»):
     оно было нужно, чтобы прибирать наплодившиеся районы, а районов больше
@@ -1691,6 +1692,24 @@ async def spisok_pravka(request: Request):
                     int(telo["id"]),
                     nazvanie,
                 )
+
+            elif chto == "udalit":
+                # Удалять можно только то, чего нет ни в одной карточке —
+                # иначе поедут чужие данные. Слово владельца 07.09.2026:
+                # «удали все лишние тематики, всё почисти». Раньше чистить
+                # приходилось руками через нас; теперь админ сам.
+                nomer = int(telo["id"])
+                if tip == "tematika":
+                    zanyato = await conn.fetchval(
+                        "select count(*) from kartochka_tematiki where tematika_id = $1", nomer
+                    )
+                else:
+                    zanyato = await conn.fetchval(
+                        "select count(*) from kartochki where gorod_id = $1", nomer
+                    )
+                if zanyato:
+                    return {"ok": False, "reason": "zanyato-kartochkami", "skolko": zanyato}
+                await conn.execute(f"delete from {tablica} where id = $1", nomer)
 
             elif chto == "skryt":
                 await conn.execute(
