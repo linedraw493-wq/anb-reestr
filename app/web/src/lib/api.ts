@@ -45,22 +45,6 @@ const liveApi: AuthApi = {
 
 export const api: AuthApi = USE_FAKE ? fakeApi : liveApi
 
-/**
- * Вход в админку по логину и паролю — рядом с телефоном и кодом.
- * Демо-режим: на стенде admin / admin (выключатели ADMIN_LOGIN / ADMIN_PAROL).
- */
-export async function vhodParol(
-  login: string,
-  parol: string,
-): Promise<{ ok: boolean; reason?: string }> {
-  if (USE_FAKE) return { ok: true }
-  try {
-    return await post('/api/auth/parol', { login, parol })
-  } catch {
-    return { ok: false, reason: 'net' }
-  }
-}
-
 export async function vyyti(): Promise<void> {
   if (!USE_FAKE) await post('/api/auth/exit', {})
 }
@@ -163,3 +147,31 @@ const liveModerApi: ModerApi = {
 }
 
 export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi
+
+/* ------------------------------------------------- назначение модератора */
+
+export type Chelovek = {
+  chelovekId: number
+  telefon: string | null
+  nik: string | null
+  imya: string | null
+  rol: 'blogger' | 'moderator' | 'admin'
+}
+
+/**
+ * Кто есть кто. Только для админа: модератору эта дверь отвечает 403,
+ * и экран «Модераторы» ему в меню не показывается.
+ */
+export const adminApi = {
+  async lyudi(poisk: string): Promise<{ moderatory: Chelovek[]; nayden: Chelovek[] }> {
+    if (USE_FAKE) return { moderatory: [], nayden: [] }
+    const adres = `/api/moder/lyudi${poisk.trim() ? `?poisk=${encodeURIComponent(poisk.trim())}` : ''}`
+    const otvet = await fetch(adres, { credentials: 'same-origin' })
+    if (otvet.status === 403) throw new NetDostupa()
+    if (!otvet.ok) throw new ServerMolchit()
+    return (await otvet.json()) as { moderatory: Chelovek[]; nayden: Chelovek[] }
+  },
+
+  naznachit: (chelovekId: number, rol: 'moderator' | 'blogger') =>
+    post<{ ok: boolean; reason?: string }>('/api/moder/rol', { chelovekId, rol }),
+}

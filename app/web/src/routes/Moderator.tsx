@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { moderApi, NetDostupa } from '../lib/api'
+import { ktoYa, moderApi, NetDostupa } from '../lib/api'
 import {
   initsialy,
   razdelit,
@@ -45,7 +45,13 @@ const PUSTAYA_VKLADKA: Record<CardStatus, { zagolovok: string; poyasnenie: strin
   },
 }
 
-/** Инструмент модератора: заявки, проверка, правка, удаление, добавление. */
+/**
+ * Инструмент проверки карточек.
+ *
+ * Кто что видит (слово владельца 07.09.2026): модератор — только карточку,
+ * скрин и решение «одобрить / отклонить». Правка полей, скрытие, удаление и
+ * заведение карточки руками — админские, и на сервере закрыты тоже.
+ */
 export default function Moderator() {
   const navigate = useNavigate()
   const spr = useSpravochniki()
@@ -60,7 +66,18 @@ export default function Moderator() {
   const [prichiny, setPrichiny] = useState<string[]>([])
   const [zanyat, setZanyat] = useState(false)
   const [beda, setBeda] = useState<'net-prav' | 'net-svyazi' | null>(null)
+  const [admin, setAdmin] = useState(false)
   const pervyyRaz = useRef(true)
+
+  // Роль решает, что вообще показывать на экране. Пока не знаем — считаем
+  // модератором: лишнюю кнопку показать хуже, чем показать её на миг позже.
+  useEffect(() => {
+    let zhiv = true
+    void ktoYa().then((ya) => zhiv && setAdmin(ya.vnutri === true && ya.rol === 'admin'))
+    return () => {
+      zhiv = false
+    }
+  }, [])
 
   /* Страницами и по вкладке: раньше экран тянул все 306 карточек разом и
      ждал секунды. Теперь сервер отдаёт одну вкладку по пятьдесят штук. */
@@ -158,8 +175,9 @@ export default function Moderator() {
         <div className="wordmark">Ассоциация блогеров · модератор</div>
         <h1>Проверка карточек</h1>
         <p className="sub">
-          Проверка при регистрации временно выключена — карточки идут в каталог сразу. Отсюда их всё
-          равно можно править, скрывать и возвращать.
+          {admin
+            ? 'Проверка при регистрации временно выключена — карточки идут в каталог сразу. Отсюда их всё равно можно править, скрывать и возвращать.'
+            : 'Смотрите карточку и скрин, потом решайте: одобрить или отказать с причиной. Причину блогер увидит и по ней исправит карточку.'}
         </p>
       </header>
 
@@ -184,21 +202,23 @@ export default function Moderator() {
             ))}
           </div>
 
-          <button
-            className="btn small ghost wide"
-            disabled={zanyat}
-            onClick={() =>
-              void deystvie(async () => {
-                const telefon = prompt('Номер телефона блогера (можно оставить пустым):') ?? ''
-                const nik = prompt('Ник блогера:') ?? ''
-                const z = await moderApi.create(telefon, nik)
-                setVkladka('draft')
-                setVybran(z.karta.id)
-              }, 'ostavit')
-            }
-          >
-            + Завести карточку вручную
-          </button>
+          {admin && (
+            <button
+              className="btn small ghost wide"
+              disabled={zanyat}
+              onClick={() =>
+                void deystvie(async () => {
+                  const telefon = prompt('Номер телефона блогера (можно оставить пустым):') ?? ''
+                  const nik = prompt('Ник блогера:') ?? ''
+                  const z = await moderApi.create(telefon, nik)
+                  setVkladka('draft')
+                  setVybran(z.karta.id)
+                }, 'ostavit')
+              }
+            >
+              + Завести карточку вручную
+            </button>
+          )}
 
           {spisok.length === 0 ? (
             <div className="pusto malo">
@@ -331,8 +351,9 @@ export default function Moderator() {
 
               <ProverkaBlok k={pravka} />
 
-              {/* ------------------------------------------------ правка */}
-              <section className="block">
+              {/* правка — админская: модератор карточку не переписывает */}
+              {admin && (
+                <section className="block">
                 <h2>Правка</h2>
 
                 <label className="fld">
@@ -507,6 +528,7 @@ export default function Moderator() {
                   Сохранить правки
                 </button>
               </section>
+)}
 
               {/* -------------------------------------------------- решение */}
               <section className="block">
@@ -516,7 +538,9 @@ export default function Moderator() {
                   disabled={zanyat || tekushchaya.status === 'published'}
                   onClick={() =>
                     void deystvie(async () => {
-                      await moderApi.update(pravka)
+                      // Правки сохраняет только админ: у модератора этой
+                      // двери нет ни на экране, ни на сервере.
+                      if (admin) await moderApi.update(pravka)
                       await moderApi.approve(pravka.id)
                     })
                   }
@@ -558,6 +582,7 @@ export default function Moderator() {
                   Отклонить
                 </button>
 
+{admin && (<>
                 {tekushchaya.status === 'published' ? (
                   <button
                     className="btn ghost"
@@ -594,6 +619,7 @@ export default function Moderator() {
                 >
                   Удалить навсегда
                 </button>
+</>)}
               </section>
             </div>
           )}

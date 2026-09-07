@@ -5,7 +5,6 @@
 между доменами.
 """
 
-import hmac
 import io
 import json
 import logging
@@ -44,8 +43,6 @@ async def _postavit_adminov() -> None:
         nomer = vhod.normalizovat_telefon(syroy)
         if nomer:
             await baza.ustanovit_admina(nomer, "Админ Ассоциации")
-    if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
-        await baza.zavesti_login_admina(nastroyki.LOGIN_ADMIN_IMYA)
 
 
 @asynccontextmanager
@@ -62,10 +59,6 @@ async def zhizn(_: FastAPI):
     elif nastroyki.MASTER_KOD and nastroyki.MASTER_KOD_TELEFONY.strip():
         skolko = len([n for n in nastroyki.MASTER_KOD_TELEFONY.split(",") if n.strip()])
         log.info("постоянный код входа действует для %d номер(ов)", skolko)
-    if nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL:
-        # Оставлен словом владельца 06.09.2026 — клиенту он нужен, пока нет
-        # SMS-оператора. Пароль живёт только в настройках окружения.
-        log.info("вход в админку по логину включён (логин %r)", nastroyki.ADMIN_LOGIN)
     if vhod.kanal() == "sms":
         log.info(
             "коды идут настоящей SMS через Mobizon, подпись %s",
@@ -504,46 +497,6 @@ async def vhod_check(request: Request):
     return otvet
 
 
-@app.post("/api/auth/parol")
-async def vhod_parol(request: Request):
-    """Вход в админку по логину и паролю — рядом с телефоном и кодом.
-
-    Демо-режим: логин и пароль в ADMIN_LOGIN / ADMIN_PAROL (на стенде
-    admin/admin). За ними стоит один общий admin-кабинет без телефона.
-    Слово владельца 03.09.2026. Сменить или очистить перед боем.
-    """
-    if _slishkom_chasto(request):
-        return {"ok": False, "reason": "too-often", "retryAfter": 60}
-    if not (nastroyki.ADMIN_LOGIN and nastroyki.ADMIN_PAROL):
-        return {"ok": False, "reason": "off"}
-
-    telo = await request.json()
-    login = str(telo.get("login", ""))
-    parol = str(telo.get("parol", ""))
-    podoshlo = hmac.compare_digest(login, nastroyki.ADMIN_LOGIN) and hmac.compare_digest(
-        parol, nastroyki.ADMIN_PAROL
-    )
-    if not podoshlo:
-        return {"ok": False, "reason": "bad-creds"}
-
-    async with baza.pul().acquire() as conn:
-        chelovek_id = await conn.fetchval(
-            "select id from lyudi where imya = $1 and telefon is null and rol = 'admin'"
-            " order by id limit 1",
-            nastroyki.LOGIN_ADMIN_IMYA,
-        )
-        if chelovek_id is None:  # на бою lifespan мог не сработать — заводим тут
-            chelovek_id = await conn.fetchval(
-                "insert into lyudi (telefon, rol, imya) values (null, 'admin', $1) returning id",
-                nastroyki.LOGIN_ADMIN_IMYA,
-            )
-        znachenie = await vhod.otkryt_sessiyu(conn, chelovek_id)
-
-    otvet = JSONResponse({"ok": True, "next": "katalog"})
-    vhod.postavit_cookie(otvet, znachenie)
-    return otvet
-
-
 @app.post("/api/auth/exit")
 async def vhod_exit(request: Request):
     znachenie = request.cookies.get(vhod.COOKIE)
@@ -954,8 +907,24 @@ async def sohranit_kartochku(request: Request):
 
 
 async def _modertor(request: Request) -> asyncpg.Record | None:
+    """Кто вправе смотреть очередь и решать по карточке: модератор и админ.
+
+    Слово владельца 07.09.2026: «модератор только проверяет карточки и
+    апрувит их, либо блокирует отказом на регистрацию». Поэтому этой
+    дверью открыты ровно четыре места — очередь, одобрить, отклонить и
+    готовые причины отказа. Всё остальное в админке (приглашения, коды,
+    правка карточек, списки, сводка, удаление) закрыто на `_admin`.
+    """
     chelovek = await _tekushchiy(request)
     if chelovek is None or chelovek["rol"] not in ("moderator", "admin"):
+        return None
+    return chelovek
+
+
+async def _admin(request: Request) -> asyncpg.Record | None:
+    """Только админ. Модератора сюда не пускаем — у него одна работа."""
+    chelovek = await _tekushchiy(request)
+    if chelovek is None or chelovek["rol"] != "admin":
         return None
     return chelovek
 
@@ -1156,8 +1125,8 @@ async def udalit(request: Request):
 
     Модератору хватает «скрыть»: карточка уходит из каталога, данные целы.
     """
-    kto = await _tekushchiy(request)
-    if kto is None or kto["rol"] != "admin":
+    kto = await _admin(request)
+    if kto is None:
         return _net_prav()
     kid = _nomer((await request.json()).get("id"))
     if kid is None:
@@ -1180,7 +1149,7 @@ async def udalit(request: Request):
 
 @app.post("/api/moder/update")
 async def popravit(request: Request):
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     telo = await request.json()
@@ -1256,7 +1225,7 @@ async def popravit(request: Request):
 @app.post("/api/moder/create")
 async def zavesti(request: Request):
     """Завести карточку руками — для тех, кто сам не дошёл."""
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     telo = await request.json()
@@ -1310,7 +1279,7 @@ async def zavesti(request: Request):
 @app.get("/api/moder/priglasheniya")
 async def priglasheniya_spisok(request: Request, poisk: str | None = None):
     """Список ссылок с состоянием. Спека, день 2-3 и день 5: «выпуск инвайтов»."""
-    if await _modertor(request) is None:
+    if await _admin(request) is None:
         return _net_prav()
 
     usloviya = ["l.udalen_v is null"]
@@ -1369,7 +1338,7 @@ async def priglasheniya_spisok(request: Request, poisk: str | None = None):
 @app.post("/api/moder/priglashenie")
 async def vypustit_priglashenie(request: Request):
     """Выпустить новую ссылку. Старые живые гасим — иначе их станет две."""
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     chelovek_id = _nomer((await request.json()).get("chelovekId"))
@@ -1400,7 +1369,7 @@ async def novaya_ssylka(request: Request):
     (экран приглашения это умеет). Ник необязателен: если админ его знает,
     на экране «Это вы?» будет понятнее.
     """
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     nik = ((await request.json()).get("nick") or "").strip()
@@ -1431,7 +1400,7 @@ async def vydat_rezervnyy_kod(request: Request):
     человеку голосом. Нужен, когда доставка не сработала. Живой код у
     человека при этом гаснет, чтобы их не стало два.
     """
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     chelovek_id = _nomer((await request.json()).get("chelovekId"))
@@ -1470,7 +1439,7 @@ async def skryt_kartochku(request: Request):
     Раньше было только «удалить навсегда»: одно нажатие сносило человека
     вместе с приглашением. Скрытие обратимо, данные целы.
     """
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     telo = await request.json()
@@ -1502,7 +1471,7 @@ async def skryt_kartochku(request: Request):
 @app.get("/api/moder/svodka")
 async def svodka(request: Request):
     """Дашборд: идёт наполнение или встало. Воронка показывает, где теряем."""
-    if await _modertor(request) is None:
+    if await _admin(request) is None:
         return _net_prav()
 
     async with baza.pul().acquire() as conn:
@@ -1563,7 +1532,7 @@ async def svodka(request: Request):
 @app.get("/api/moder/spiski")
 async def spiski(request: Request):
     """Тематики, города и районы с числом карточек — админ правит без нас."""
-    if await _modertor(request) is None:
+    if await _admin(request) is None:
         return _net_prav()
     async with baza.pul().acquire() as conn:
         tematiki = await conn.fetch(
@@ -1602,7 +1571,7 @@ async def spisok_pravka(request: Request):
     Удаления нет намеренно: удалишь тематику — поедут все карточки, где она
     стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
     """
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     telo = await request.json()
@@ -1697,6 +1666,89 @@ async def spisok_pravka(request: Request):
 
 
 # ==================================================================== каталог
+
+
+# =============================================== кто есть кто: назначить модератора
+
+
+@app.get("/api/moder/lyudi")
+async def lyudi_spisok(request: Request, poisk: str | None = None):
+    """Кому можно дать проверку карточек. Только админу.
+
+    Слово владельца 07.09.2026: «добавь в админку возможность назначать
+    модератора». Наверху экрана — те, кто уже модератор; ниже — поиск по
+    нику и телефону среди остальных, чтобы не листать три сотни человек.
+    """
+    if await _admin(request) is None:
+        return _net_prav()
+
+    async with baza.pul().acquire() as conn:
+        moderatory = await conn.fetch(
+            "select l.id, l.telefon, l.imya, l.rol, k.nik"
+            " from lyudi l left join kartochki k on k.chelovek_id = l.id"
+            " where l.rol in ('moderator', 'admin') and l.udalen_v is null"
+            " order by l.rol, l.id"
+        )
+        nayden = []
+        if poisk and poisk.strip():
+            nayden = await conn.fetch(
+                "select l.id, l.telefon, l.imya, l.rol, k.nik"
+                " from lyudi l left join kartochki k on k.chelovek_id = l.id"
+                " where l.rol = 'blogger' and l.udalen_v is null"
+                " and (k.nik ilike $1 or l.telefon ilike $1 or l.imya ilike $1)"
+                " order by k.nik nulls last, l.id limit 30",
+                "%" + poisk.strip() + "%",
+            )
+
+    def vid(r: asyncpg.Record) -> dict:
+        return {
+            "chelovekId": r["id"],
+            "telefon": r["telefon"],
+            "nik": r["nik"],
+            "imya": r["imya"],
+            "rol": r["rol"],
+        }
+
+    return {"moderatory": [vid(r) for r in moderatory], "nayden": [vid(r) for r in nayden]}
+
+
+@app.post("/api/moder/rol")
+async def naznachit_rol(request: Request):
+    """Дать человеку проверку карточек или забрать её обратно.
+
+    Даём и снимаем только `moderator`. Админов эта дверь не делает и не
+    разжалует: админ заводится настройками при старте, и подвинуть его
+    нажатием на экране нельзя — иначе один админ случайно оставит сайт
+    без админов вовсе.
+    """
+    kto = await _admin(request)
+    if kto is None:
+        return _net_prav()
+    telo = await request.json()
+    chelovek_id = _nomer(telo.get("chelovekId"))
+    rol = str(telo.get("rol", ""))
+    if chelovek_id is None:
+        return {"ok": False, "reason": "bad-id"}
+    if rol not in ("moderator", "blogger"):
+        return {"ok": False, "reason": "bad-role"}
+    if chelovek_id == kto["id"]:
+        return {"ok": False, "reason": "sam-sebe"}
+
+    async with baza.pul().acquire() as conn:
+        byla = await conn.fetchval("select rol from lyudi where id = $1", chelovek_id)
+        if byla is None:
+            return {"ok": False, "reason": "no-person"}
+        if byla == "admin":
+            return {"ok": False, "reason": "eto-admin"}
+        async with conn.transaction():
+            await conn.execute("update lyudi set rol = $2 where id = $1", chelovek_id, rol)
+            await conn.execute(
+                "insert into zhurnal_moderatsii (kartochka_id, kto_id, chto)"
+                " values (null, $1, $2)",
+                kto["id"],
+                "naznachil-moderatora" if rol == "moderator" else "snyal-moderatora",
+            )
+    return {"ok": True, "rol": rol}
 
 
 @app.get("/api/katalog")

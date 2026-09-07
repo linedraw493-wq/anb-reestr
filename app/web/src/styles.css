@@ -165,16 +165,6 @@ input {
   text-align: center;
 }
 
-/* вход администратора по логину — под чертой, отдельно от входа по номеру */
-.admin-vhod {
-  margin-top: 6px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 /* ------------------------------------------------------- карточка приглашения */
 
 .idcard {

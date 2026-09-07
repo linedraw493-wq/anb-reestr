@@ -7,6 +7,7 @@ import Invite from './routes/Invite'
 import Katalog from './routes/Katalog'
 import Login from './routes/Login'
 import Moderator from './routes/Moderator'
+import Moderatory from './routes/Moderatory'
 import Priglasheniya from './routes/Priglasheniya'
 import Svodka from './routes/Svodka'
 import SpiskiEkran from './routes/Spiski'
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/moderator/spiski" element={<SpiskiEkran />} />
       <Route path="/moderator/priglasheniya" element={<Priglasheniya />} />
       <Route path="/moderator/svodka" element={<Svodka />} />
+      <Route path="/moderator/lyudi" element={<Moderatory />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,26 +1,30 @@
 """Полный круг, слово владельца 06.09.2026.
 
-Он описал его так: «Я как админ зашёл через admin/admin, добавил свой номер
-или любой другой. Потом в другом браузере с этого номера через СМС вошёл, там
-зарегался и загрузил скриншот».
+Он описал его так: «Я как админ зашёл, добавил свой номер или любой другой.
+Потом в другом браузере с этого номера через СМС вошёл, там зарегался и
+загрузил скриншот».
+
+Вход админа с 07.09.2026 идёт тем же путём, что у всех — номер и код из
+SMS: логин с паролем убраны словом владельца («логина и пароля не будет,
+вход будет по номеру телефона»).
 
 Это и есть приёмка спеки — «один сценарий, один телефон». Здесь она пройдена
 машиной, чтобы не разваливалась молча при следующей правке. Руками её всё
 равно проходят на живом сайте: машина не увидит, что кнопка мелкая, а SMS
 не пришла.
 
-Коды и пароли тут не «набираются» в человеческом смысле: это проверка, она
-кладёт код в базу тем же способом, каким его кладёт сервер, и обращается к
-своему же приложению.
+Коды тут не «набираются» в человеческом смысле: проверка кладёт код в базу
+тем же способом, каким его кладёт сервер, и обращается к своему же
+приложению.
 """
 
 import io
 
 from PIL import Image
 
-from app import chtenie, nastroyki
+from app import chtenie
 
-from .conftest import otpechatok
+from .conftest import otpechatok, zavesti_cheloveka
 
 
 def _kartinka() -> bytes:
@@ -44,11 +48,27 @@ async def test_polnyy_krug_ot_admina_do_katalog(klient, baza_conn, monkeypatch):
     telefon = "+77019876543"
     nik = "@novaya.blogerka"
 
-    # --- 1. Админ входит по логину и паролю -------------------------------
-    monkeypatch.setattr(nastroyki, "ADMIN_LOGIN", "admin")
-    monkeypatch.setattr(nastroyki, "ADMIN_PAROL", "admin")
+    # --- 1. Админ входит по своему номеру и коду --------------------------
+    telefon_admina = "+77010000111"
+    await zavesti_cheloveka(baza_conn, telefon_admina, rol="admin", imya="Админ круга")
+
+    ushlo: list = []
+
+    async def poslat_adminu(kod: str, komu: str | None, metka: str = "") -> bool:
+        ushlo.append(komu)
+        return True
+
+    monkeypatch.setattr("app.vhod.poslat", poslat_adminu)
+    nachalo_admina = await klient.post("/api/auth/start", json={"phone": telefon_admina})
+    assert nachalo_admina.json()["ok"] is True
+    assert ushlo == [telefon_admina]
+
+    admin_id = await baza_conn.fetchval(
+        "select id from lyudi where telefon = $1", telefon_admina
+    )
+    await _polozhit_kod(baza_conn, admin_id, "135790")
     vhod_admina = await klient.post(
-        "/api/auth/parol", json={"login": "admin", "parol": "admin"}
+        "/api/auth/check", json={"phone": telefon_admina, "code": "135790"}
     )
     assert vhod_admina.json()["ok"] is True
 
@@ -63,9 +83,9 @@ async def test_polnyy_krug_ot_admina_do_katalog(klient, baza_conn, monkeypatch):
     assert ssylka.startswith("/i/")
     token = ssylka.removeprefix("/i/")
 
-    # неверный пароль в админку не пускает
+    # неверный код в админку не пускает
     ne_pustili = await klient.post(
-        "/api/auth/parol", json={"login": "admin", "parol": "ne-admin"}
+        "/api/auth/check", json={"phone": telefon_admina, "code": "000000"}
     )
     assert ne_pustili.json()["ok"] is False
 

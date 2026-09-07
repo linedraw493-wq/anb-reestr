@@ -113,19 +113,3 @@ async def ustanovit_admina(telefon: str, imya: str) -> None:
             imya,
         )
 
-
-async def zavesti_login_admina(imya: str) -> None:
-    """Кабинет за входом по логину/паролю — без телефона, один на всех.
-
-    Ищем по имени: телефона у него нет, а имя постоянное. Нет — заводим.
-    Повторный вызов ничего не делает.
-    """
-    async with pul().acquire() as conn:
-        est = await conn.fetchval(
-            "select id from lyudi where imya = $1 and telefon is null and rol = 'admin'",
-            imya,
-        )
-        if est is None:
-            await conn.execute(
-                "insert into lyudi (telefon, rol, imya) values (null, 'admin', $1)", imya
-            )

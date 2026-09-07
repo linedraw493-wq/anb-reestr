@@ -11,9 +11,15 @@ import { ktoYa, vyyti, type Ya } from '../lib/api'
  * «Админка» — всё хозяйство модератора спрятано под неё. Гость видит «Войти».
  */
 
+/**
+ * Что видно в «Админке». `tolkoAdmin` — не украшение: те же двери закрыты
+ * ролью и на сервере. Слово владельца 07.09.2026: у модератора одна работа
+ * — проверка карточек, остальное админское.
+ */
 const ADMINKA: { put: string; imya: string; tolkoAdmin?: boolean }[] = [
   { put: '/moderator', imya: 'Проверка карточек' },
-  { put: '/moderator/priglasheniya', imya: 'Приглашения' },
+  { put: '/moderator/priglasheniya', imya: 'Приглашения', tolkoAdmin: true },
+  { put: '/moderator/lyudi', imya: 'Модераторы', tolkoAdmin: true },
   { put: '/moderator/spiski', imya: 'Списки', tolkoAdmin: true },
   { put: '/moderator/svodka', imya: 'Сводка', tolkoAdmin: true },
 ]

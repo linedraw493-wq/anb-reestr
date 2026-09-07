@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, vhodParol } from '../lib/api'
+import { api } from '../lib/api'
 import { saveFlow } from '../lib/flow'
 import { formatAsTyped, toE164 } from '../lib/phone'
 import { Err, Shell } from '../ui/Shell'
@@ -12,13 +12,6 @@ export default function Login() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unknown, setUnknown] = useState(false)
-
-  // Вход администратора по логину и паролю — прячется под ссылкой.
-  const [poParolyu, setPoParolyu] = useState(false)
-  const [login, setLogin] = useState('')
-  const [parol, setParol] = useState('')
-  const [vhozhu, setVhozhu] = useState(false)
-  const [parolError, setParolError] = useState<string | null>(null)
 
   const phone = toE164(typed)
   const canSend = phone !== null && !sending
@@ -49,20 +42,6 @@ export default function Login() {
 
     saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked })
     navigate('/kod')
-  }
-
-  async function vhodPoParolyu() {
-    if (vhozhu || login.trim() === '' || parol === '') return
-    setVhozhu(true)
-    setParolError(null)
-    const r = await vhodParol(login.trim(), parol)
-    setVhozhu(false)
-    if (r.ok) {
-      navigate('/moderator/priglasheniya', { replace: true })
-      return
-    }
-    if (r.reason === 'off') setParolError('Вход по паролю выключен.')
-    else setParolError('Логин или пароль не подходят.')
   }
 
   return (
@@ -107,48 +86,6 @@ export default function Login() {
         Первый раз здесь? Вход только по личной ссылке-приглашению — её выдаёт администратор
         Ассоциации.
       </p>
-
-      <div className="admin-vhod">
-        {!poParolyu ? (
-          <button className="linkbtn" onClick={() => setPoParolyu(true)}>
-            Вход для администратора
-          </button>
-        ) : (
-          <>
-            <span className="field-label" id="login-label">
-              Логин и пароль администратора
-            </span>
-            <input
-              className="input"
-              aria-labelledby="login-label"
-              type="text"
-              autoComplete="username"
-              placeholder="логин"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && vhodPoParolyu()}
-            />
-            <input
-              className="input"
-              aria-label="Пароль администратора"
-              type="password"
-              autoComplete="current-password"
-              placeholder="пароль"
-              value={parol}
-              onChange={(e) => setParol(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && vhodPoParolyu()}
-            />
-            {parolError && <Err>{parolError}</Err>}
-            <button
-              className="btn"
-              disabled={vhozhu || login.trim() === '' || parol === ''}
-              onClick={vhodPoParolyu}
-            >
-              {vhozhu ? 'Входим…' : 'Войти'}
-            </button>
-          </>
-        )}
-      </div>
     </Shell>
   )
 }
