@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 import asyncpg
 from fastapi import Request
 
-from . import baza, nastroyki, sms, telegram
+from . import baza, nastroyki, sms, telegram, zvonok
 
 COOKIE = "sessiya"
 
@@ -36,25 +36,54 @@ def otpechatok(znachenie: str) -> str:
 
 
 def maska(telefon: str | None) -> str:
-    """Пусто — заготовка из таблицы заказчика: номер человек впишет сам."""
+    """Спрятать середину: +7 778 ••• •• 92. Годится для номера любой страны.
+
+    Пусто — заготовка из таблицы заказчика: номер человек впишет сам.
+    """
     if not telefon:
         return ""
     d = "".join(ch for ch in telefon if ch.isdigit())
-    if len(d) < 11:
+    if len(d) < 7:
         return telefon
-    return f"+{d[0]} {d[1:4]} ••• •• {d[9:11]}"
+    if len(d) == 11 and d.startswith("7"):
+        # Казахстан и Россия — привычный вид, к нему все притерпелись
+        return f"+{d[0]} {d[1:4]} ••• •• {d[9:11]}"
+    # Любая другая страна: видно начало и две последние цифры, середина скрыта
+    return f"+{d[:4]} ••• {d[-2:]}"
 
 
 def normalizovat_telefon(syroy: str) -> str | None:
-    """+7 701 000 00 00, 8 705…, 77010000000 → +77010000000."""
-    d = "".join(ch for ch in str(syroy) if ch.isdigit())
-    if len(d) == 11 and d.startswith("8"):
-        d = "7" + d[1:]
-    if len(d) == 10 and d.startswith("7"):
-        d = "7" + d
-    if len(d) != 11 or not d.startswith("7"):
+    """Любая запись номера → один вид: +77010000000, +442071838750.
+
+    Два правила, те же, что на экране (слово владельца 07.09.2026):
+
+    - **без плюса — считаем казахстанским.** «7010000000», «87010000000» и
+      «77010000000» — один и тот же номер. Первая семёрка не съедается:
+      номера 747 и 771 начинались криво именно из-за этого;
+    - **с плюсом — любая страна.** Проверяем только длину, потому что
+      планов нумерации мира сервер не знает; тонкую проверку делает экран
+      библиотекой, а сюда номер приходит уже разобранным.
+
+    Не номер вовсе — None.
+    """
+    syroy = str(syroy or "").strip()
+    cifry = "".join(ch for ch in syroy if ch.isdigit())
+    if not cifry:
         return None
-    return "+" + d
+
+    if syroy.startswith("+"):
+        # Международный: от 8 до 15 цифр — так устроен сам стандарт E.164.
+        if not 8 <= len(cifry) <= 15:
+            return None
+        return "+" + cifry
+
+    if len(cifry) == 11 and cifry.startswith("8"):
+        cifry = "7" + cifry[1:]
+    elif len(cifry) == 10:
+        cifry = "7" + cifry
+    if len(cifry) != 11 or not cifry.startswith("7"):
+        return None
+    return "+" + cifry
 
 
 # ------------------------------------------------------------------- коды
@@ -87,15 +116,20 @@ def master_kod_dlya(telefon: str | None) -> bool:
 
 
 def kanal() -> str:
-    """Чем сейчас шлём коды: 'sms' или 'telegram'.
+    """Чем сейчас отдаём коды: 'zvonok', 'sms' или 'telegram'.
 
-    Настройка `KANAL_KODOV` по умолчанию 'auto': есть ключ Mobizon — шлём
-    SMS, нет — работает старый путь через Telegram. Так стенд без ключа
-    ничего не замечает, а бой переходит на SMS ровно тогда, когда ключ
-    появляется в настройках, без правки кода и без перевыката.
+    Настройка `KANAL_KODOV` по умолчанию 'auto' — берём первое, что
+    настроено: звонок, потом SMS, потом телеграм-чат владельца. Так стенд
+    без ключей ничего не замечает, а бой переходит на звонки ровно тогда,
+    когда ключ появляется в настройках, без правки кода и перевыката.
+
+    Звонок впереди SMS намеренно (слово владельца 07.09.2026): он доходит
+    до всех операторов, включая Beeline, и стоит вдвое дешевле.
     """
     vybor = nastroyki.KANAL_KODOV
     if vybor == "auto":
+        if zvonok.vklyucheno():
+            return "zvonok"
         return "sms" if sms.vklyucheno() else "telegram"
     return vybor
 
@@ -110,10 +144,13 @@ async def poslat(kod: str, telefon: str | None, metka: str = "") -> bool:
     код чужого человека ушёл бы не тому. Не вышло — говорим честно, а
     админ выдаёт резервный код из админки.
     """
-    if kanal() == "sms":
+    kuda = kanal()
+    if kuda in ("zvonok", "sms"):
         if not telefon:
             # Заготовка из таблицы заказчика без номера: слать некуда.
             return False
+        if kuda == "zvonok":
+            return await zvonok.pozvonit_kod(kod, telefon)
         return await sms.poslat_kod(kod, telefon)
     return await telegram.poslat_kod(kod, maska(telefon) or metka or "вход")
 

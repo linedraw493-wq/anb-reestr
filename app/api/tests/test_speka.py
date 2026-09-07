@@ -113,20 +113,17 @@ async def test_telefon_ne_uezzhaet_ni_v_odnom_publichnom_otvete(klient, baza_con
 
 
 async def test_blogger_pravit_svoyu_kartochku(klient, baza_conn, monkeypatch):
-    """Спека: «блогер редактирует тематика, район, ставка, ссылки»."""
+    """Спека: «блогер редактирует тематика, район, ставка, ссылки».
+
+    Района с 07.09.2026 нет — вместо него город, остальное как в спеке.
+    Заодно проверяем имя и рассказ о себе, добавленные тем же днём.
+    """
     telefon = "+77016000004"
     await zavesti_cheloveka(baza_conn, telefon)
     await _voyti(klient, baza_conn, telefon, monkeypatch)
 
     tematika = await baza_conn.fetchval("select nazvanie from tematiki where vidna limit 1")
-    gorod = await baza_conn.fetchval(
-        "select g.nazvanie from goroda g join rayony r on r.gorod_id = g.id limit 1"
-    )
-    rayon = await baza_conn.fetchval(
-        "select r.nazvanie from rayony r join goroda g on g.id = r.gorod_id"
-        " where g.nazvanie = $1 limit 1",
-        gorod,
-    )
+    gorod = await baza_conn.fetchval("select nazvanie from goroda limit 1")
 
     sohranil = await klient.post(
         "/api/card",
@@ -138,9 +135,10 @@ async def test_blogger_pravit_svoyu_kartochku(klient, baza_conn, monkeypatch):
             "ssylki": ["https://instagram.com/sam_sebe_redaktor"],
             "tematiki": [tematika],
             "gorod": gorod,
-            "rayon": rayon,
             "yazyk": "Русский",
             "stavka": "40000",
+            "fio": "Айгерим Сериковна",
+            "bio": "Пишу про еду и город.",
         },
     )
     assert sohranil.json()["ok"] is True
@@ -148,18 +146,20 @@ async def test_blogger_pravit_svoyu_kartochku(klient, baza_conn, monkeypatch):
     moya = (await klient.get("/api/card")).json()["karta"]
     assert moya["nick"] == "@sam_sebe_redaktor"
     assert moya["tematiki"] == [tematika]
-    assert moya["gorod"] == gorod and moya["rayon"] == rayon
+    assert moya["gorod"] == gorod
     assert moya["stavka"] == "40000"
     assert moya["ssylki"] == ["https://instagram.com/sam_sebe_redaktor"]
     # спека, день 4: «с пометкой источника и датой» — дата встала сама
     assert moya["cifryOt"] is not None
+    assert moya["fio"] == "Айгерим Сериковна"
+    assert moya["bio"] == "Пишу про еду и город."
     klient.cookies.clear()
 
 
 # ------------------------------------------------------- «админка» (день 5)
 
 
-async def test_moderator_stavit_pometku_dostovernosti(klient, baza_conn):
+async def test_admin_stavit_pometku_dostovernosti(klient, baza_conn):
     """Спека, день 5: «пометка достоверности» руками, а не только сама."""
     admin = await zavesti_cheloveka(baza_conn, "+77016000005", rol="admin")
     klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, admin))
@@ -176,7 +176,6 @@ async def test_moderator_stavit_pometku_dostovernosti(klient, baza_conn):
             "istochnik": "screen",
             "tematiki": [],
             "gorod": "",
-            "rayon": "",
             "yazyk": "Русский",
             "stavka": "",
         },

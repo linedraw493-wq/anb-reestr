@@ -13,8 +13,6 @@ import {
 } from '../lib/katalog'
 import { razobratVse } from '../lib/seti'
 import { useSpravochniki } from '../lib/spravochniki'
-import { Karta } from '../ui/Karta'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /** Главная страница сайта: сюда приходит рекламодатель искать блогера. */
@@ -26,7 +24,6 @@ export default function Katalog() {
   const [vydacha, setVydacha] = useState<Vydacha | null>(null)
   const [gruzim, setGruzim] = useState(true)
   const [beda, setBeda] = useState(false)
-  const [naKarte, setNaKarte] = useState(false)
   const [shtorka, setShtorka] = useState(false)
 
   /**
@@ -39,7 +36,6 @@ export default function Katalog() {
       const novye: Filtry = { ...filtry, ...chto }
       // сменил фильтр — вернулись на первую страницу, иначе покажется пусто
       if (!('stranica' in chto)) novye.stranica = 1
-      if ('gorod' in chto) novye.rayon = ''
       const p = new URLSearchParams()
       for (const [k, v] of Object.entries(novye)) {
         if (k === 'poryadok' && v === 'ohvat') continue
@@ -71,8 +67,6 @@ export default function Katalog() {
     return () => stop.abort()
   }, [filtry])
 
-  const naGorod = useCallback((gorod: string) => pravit({ gorod }), [pravit])
-  const rayony = spr.goroda[filtry.gorod] ?? []
   const zadano = skolkoZadano(filtry)
   const pervayaZagruzka = vydacha === null && gruzim
 
@@ -99,7 +93,6 @@ export default function Katalog() {
       <Shapka />
 
       <header className="form-head">
-        <Nadpis slovo="БЛОГЕРЫ" />
         <h1>Каталог блогеров</h1>
         <p className="sub">
           Блогеры Казахстана в одном месте. Отберите по тематике, городу, охвату и цене — и напишите
@@ -134,18 +127,6 @@ export default function Katalog() {
           </button>
 
           <PoiskPole znachenie={filtry.poisk} pravit={pravit} />
-
-          <div className="perekl">
-            <button
-              className={`perekl-b${!naKarte ? ' on' : ''}`}
-              onClick={() => setNaKarte(false)}
-            >
-              Списком
-            </button>
-            <button className={`perekl-b${naKarte ? ' on' : ''}`} onClick={() => setNaKarte(true)}>
-              На карте
-            </button>
-          </div>
 
           <select
             className="input malen"
@@ -248,24 +229,6 @@ export default function Katalog() {
               </select>
             </label>
 
-            {rayony.length > 0 && (
-              <label className="fld">
-                <span className="field-label">Район</span>
-                <select
-                  className="input"
-                  value={filtry.rayon}
-                  onChange={(e) => pravit({ rayon: e.target.value })}
-                >
-                  <option value="">Любой</option>
-                  {rayony.map((r: string) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
             <div className="fld">
               <span className="field-label">Язык</span>
               <div className="chips">
@@ -335,10 +298,6 @@ export default function Katalog() {
               </span>
               <span>Каталог не отвечает. Обновите страницу.</span>
             </div>
-          )}
-
-          {naKarte && vydacha && (
-            <Karta tochki={vydacha.tochki} vybran={filtry.gorod} naGorod={naGorod} />
           )}
 
           {/* Первая загрузка: показываем места под карточки, а не пустоту. */}
@@ -520,7 +479,7 @@ function PoiskPole({
 
 /** Карточка в сетке каталога. Кликается целиком. */
 function KatalozhnayaKarta({ k }: { k: KartaTip }) {
-  const mesto = [k.gorod, k.rayon].filter(Boolean).join(', ')
+  const mesto = k.gorod
   const seti = razobratVse(k.ssylki)
   const podpis = [...k.tematiki, mesto].filter(Boolean).join(' · ')
   return (
@@ -589,7 +548,6 @@ function aktivnye(f: Filtry): { key: keyof Filtry; label: string }[] {
   const spisok: { key: keyof Filtry; label: string }[] = []
   if (f.tematika) spisok.push({ key: 'tematika', label: f.tematika })
   if (f.gorod) spisok.push({ key: 'gorod', label: f.gorod })
-  if (f.rayon) spisok.push({ key: 'rayon', label: f.rayon })
   if (f.yazyk) spisok.push({ key: 'yazyk', label: f.yazyk })
   if (f.ot) spisok.push({ key: 'ot', label: `от ${razdelit(f.ot)} подписчиков` })
   if (f.do) spisok.push({ key: 'do', label: `до ${razdelit(f.do)} подписчиков` })

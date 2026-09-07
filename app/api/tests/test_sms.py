@@ -170,3 +170,93 @@ def test_so_svoey_podpisyu_podskazka_gasnet(monkeypatch):
 def test_bez_sms_podskazka_ne_nuzhna(monkeypatch):
     monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "")
     assert sms.pohozhe_beeline("+77051234567") is False
+
+
+# ------------------------------------- код звонком (07.09.2026)
+#
+# Слово владельца: «сделай вместо SMS звонки с оператора какого-нибудь».
+# Провайдер AutoCall.kz: доходит до всех операторов, включая Beeline, и
+# стоит вдвое дешевле SMS. Включается ключом, как когда-то SMS.
+
+
+def test_bez_klyucha_zvonkov_net(monkeypatch):
+    from app import nastroyki, vhod, zvonok
+
+    monkeypatch.setattr(nastroyki, "AUTOCALL_KLYUCH", "")
+    monkeypatch.setattr(nastroyki, "KANAL_KODOV", "auto")
+    assert zvonok.vklyucheno() is False
+    assert vhod.kanal() != "zvonok"
+
+
+def test_s_klyuchom_zvonok_vperedi_sms(monkeypatch):
+    """Звонок важнее SMS: он доходит до Beeline, а SMS с общей подписи — нет."""
+    from app import nastroyki, vhod
+
+    monkeypatch.setattr(nastroyki, "AUTOCALL_KLYUCH", "kl-1")
+    monkeypatch.setattr(nastroyki, "MOBIZON_KLYUCH", "kl-2")
+    monkeypatch.setattr(nastroyki, "KANAL_KODOV", "auto")
+    assert vhod.kanal() == "zvonok"
+
+
+def test_kod_diktuetsya_po_cifram(monkeypatch):
+    """«3075» слитно синтез прочитает как «три тысячи семьдесят пять»."""
+    from app import zvonok
+
+    assert zvonok._po_cifram("3075") == "3, 0, 7, 5"
+    tekst = zvonok.SHABLON.format(cifry=zvonok._po_cifram("3075"))
+    assert "3, 0, 7, 5" in tekst
+    assert tekst.count("3, 0, 7, 5") == 2  # повторяем, с первого раза не расслышат
+
+
+async def test_zvonok_uhodit_na_nomer(monkeypatch):
+    from app import nastroyki, zvonok
+
+    monkeypatch.setattr(nastroyki, "AUTOCALL_KLYUCH", "kl-1")
+    ushlo = {}
+
+    class OtvetZaglushka:
+        status_code = 200
+        text = "{}"
+
+    class KlientZaglushka:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def post(self, adres, json=None, headers=None):
+            ushlo["adres"] = adres
+            ushlo["telo"] = json
+            ushlo["kto"] = headers.get("Authorization")
+            return OtvetZaglushka()
+
+    monkeypatch.setattr("app.zvonok.httpx.AsyncClient", lambda **_: KlientZaglushka())
+    assert await zvonok.pozvonit_kod("135790", "+77051112233") is True
+    assert ushlo["adres"].endswith("/api/v1/autocalls")
+    assert ushlo["telo"]["list_id"] == [{"number": "+77051112233"}]
+    assert "1, 3, 5, 7, 9, 0" in ushlo["telo"]["audio_id"][0]["data"]["text"]
+    assert ushlo["kto"] == "Bearer kl-1"
+
+
+async def test_provayder_otkazal_znachit_ne_dozvonilis(monkeypatch):
+    from app import nastroyki, zvonok
+
+    monkeypatch.setattr(nastroyki, "AUTOCALL_KLYUCH", "kl-1")
+
+    class OtvetZaglushka:
+        status_code = 402
+        text = "no money"
+
+    class KlientZaglushka:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def post(self, *_, **__):
+            return OtvetZaglushka()
+
+    monkeypatch.setattr("app.zvonok.httpx.AsyncClient", lambda **_: KlientZaglushka())
+    assert await zvonok.pozvonit_kod("135790", "+77051112233") is False

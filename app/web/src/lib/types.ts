@@ -11,8 +11,11 @@ export type InviteState =
  */
 export type StartInput = { token?: string; phone?: string }
 
+/** Чем сервер отдаёт код: звонком робота, SMS или в телеграм-чат владельца. */
+export type Kanal = 'zvonok' | 'sms' | 'telegram'
+
 export type StartResult =
-  | { ok: true; resendAfter: number; phoneMasked: string }
+  | { ok: true; resendAfter: number; phoneMasked: string; kanal?: Kanal }
   /** номера нет в базе — говорим честно (слово владельца 02.09.2026) */
   | { ok: false; reason: 'unknown-phone' }
   | { ok: false; reason: 'bad-phone' }
@@ -44,6 +47,8 @@ export type CheckResult =
 export type Flow = {
   kind: 'invite' | 'login'
   phoneMasked: string
+  /** чем придёт код — экран кода должен сказать правду */
+  kanal?: Kanal
   token?: string
   phone?: string
   /** куда вернуть после кода. Пусто — по общему правилу (каталог/карточка).

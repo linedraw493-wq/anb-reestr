@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi, NetDostupa, type Chelovek, type Rol } from '../lib/api'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
-   Кто что может — слово владельца 07.09.2026: «добавь в админку возможность
-   назначать модератора» и «сделай возможность назначать админа в панели
-   админки».
+   Кто в админке — слово владельца 07.09.2026: «сделай возможность назначать
+   админа в панели админки».
 
-   Модератор проверяет карточки: одобряет или отказывает с причиной. Админ
-   может всё. Права проверяет сервер, экран лишь не показывает лишнего.
+   Ролей две: блогер и админ. Отдельная узкая роль модератора прожила день и
+   убрана тем же владельцем — «пускай чисто будет админ, с функционалом и
+   модера, и админ с его фишками». Права проверяет сервер, экран лишь не
+   показывает лишнего.
 --------------------------------------------------------------------------- */
 
 const NAZVANIE: Record<Rol, string> = {
   admin: 'администратор',
-  moderator: 'модератор',
   blogger: 'блогер',
 }
 
@@ -82,7 +81,6 @@ export default function Moderatory() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
-          <Nadpis slovo="ПРАВА" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Права раздаёт администратор Ассоциации.</p>
         </header>
@@ -101,19 +99,16 @@ export default function Moderatory() {
     )
   }
 
-  const moderatorov = pravaU.filter((c) => c.rol === 'moderator').length
-
   return (
     <div className="form-page">
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="ПРАВА" />
         <div className="wordmark">Ассоциация блогеров · права</div>
         <h1>Права</h1>
         <p className="sub">
-          <b>Модератор</b> проверяет карточки: одобряет их или отказывает с причиной. Больше он не
-          может ничего. <b>Администратор</b> может всё, что есть в админке, — приглашения, коды,
-          списки, сводку и раздачу прав.
+          Администратор может всё, что есть в админке: проверять карточки, выдавать приглашения и
+          резервные коды, править списки, смотреть сводку и раздавать права. Все остальные —
+          блогеры, им сюда не нужно.
         </p>
       </header>
 
@@ -149,34 +144,18 @@ export default function Moderatory() {
                   снять админа
                 </button>
               ) : (
-                <>
-                  <button
-                    className="linkbtn"
-                    disabled={zanyat}
-                    onClick={() => void pomenyat(c, 'admin')}
-                  >
-                    сделать админом
-                  </button>
-                  <button
-                    className="linkbtn"
-                    disabled={zanyat}
-                    onClick={() => void pomenyat(c, 'blogger')}
-                  >
-                    снять проверку
-                  </button>
-                </>
+                <button
+                  className="linkbtn"
+                  disabled={zanyat}
+                  onClick={() => void pomenyat(c, 'admin')}
+                >
+                  сделать админом
+                </button>
               )}
             </span>
           </li>
         ))}
       </ul>
-
-      {moderatorov === 0 && (
-        <p className="fine">
-          Модераторов пока нет — карточки проверяют администраторы. Найдите человека ниже и дайте
-          ему проверку.
-        </p>
-      )}
 
       <div className="kat-panel-ryad prig-panel">
         <input
@@ -191,8 +170,8 @@ export default function Moderatory() {
 
       {poisk.trim() === '' ? (
         <p className="fine">
-          Начните вводить ник или номер — покажем, кому можно дать права. Дать их можно только тому,
-          кто уже есть в реестре: и модератор, и админ входят своим номером, как все.
+          Начните вводить ник, имя или номер — покажем, кого можно сделать админом. Позвать можно
+          только того, кто уже есть в реестре: админ входит своим номером, как все.
         </p>
       ) : nayden.length === 0 ? (
         <div className="pusto">
@@ -211,13 +190,6 @@ export default function Moderatory() {
               <span className="prig-nik">{imenem(c)}</span>
               {c.telefon && <span className="prig-tel">{c.telefon}</span>}
               <span className="prig-knopki">
-                <button
-                  className="linkbtn"
-                  disabled={zanyat}
-                  onClick={() => void pomenyat(c, 'moderator')}
-                >
-                  сделать модератором
-                </button>
                 <button
                   className="linkbtn"
                   disabled={zanyat}

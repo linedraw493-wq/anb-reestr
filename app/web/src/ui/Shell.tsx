@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { USE_FAKE } from '../lib/rezhim'
-import { Nadpis } from './Nadpis'
 
 const PODSKAZKA = 'Заглушка: сервера нет, код всегда 000000'
 
@@ -15,9 +14,6 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="page">
       <main className="pane">
-        {/* Надпись — на весь экран за карточкой, а не внутри неё: так она
-            читается как фон страницы, ради чего и затевалась. */}
-        <Nadpis slovo="РЕЕСТР" />
         <div className="card">
           <div className="wordmark pane-mark">Реестр блогеров</div>
           {children}

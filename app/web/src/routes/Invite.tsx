@@ -85,7 +85,7 @@ export default function Invite() {
       return
     }
 
-    saveFlow({ kind: 'invite', token, phoneMasked: res.phoneMasked })
+    saveFlow({ kind: 'invite', token, phoneMasked: res.phoneMasked, kanal: res.kanal })
     navigate('/kod')
   }
 

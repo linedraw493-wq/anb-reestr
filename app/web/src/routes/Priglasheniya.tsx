@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatAsTyped, toE164 } from '../lib/phone'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
@@ -216,7 +215,6 @@ export default function Priglasheniya() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
-          <Nadpis slovo="ИНВАЙТЫ" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Приглашения выдаёт администратор Ассоциации.</p>
         </header>
@@ -239,7 +237,6 @@ export default function Priglasheniya() {
     <div className="form-page">
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="ИНВАЙТЫ" />
         <div className="wordmark">Ассоциация блогеров · приглашения</div>
         <h1>Приглашения</h1>
         <p className="sub">

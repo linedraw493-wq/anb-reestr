@@ -30,7 +30,6 @@ export const PORYADKI: { key: Poryadok; label: string }[] = [
 export type Filtry = {
   tematika: string
   gorod: string
-  rayon: string
   yazyk: string
   ot: string
   do: string
@@ -44,7 +43,6 @@ export type Filtry = {
 export const PUSTYE: Filtry = {
   tematika: '',
   gorod: '',
-  rayon: '',
   yazyk: '',
   ot: '',
   do: '',
@@ -56,17 +54,9 @@ export const PUSTYE: Filtry = {
 }
 
 export function skolkoZadano(f: Filtry): number {
-  return [
-    f.tematika,
-    f.gorod,
-    f.rayon,
-    f.yazyk,
-    f.ot,
-    f.do,
-    f.ohvat_ot,
-    f.stavka_do,
-    f.poisk,
-  ].filter(Boolean).length
+  return [f.tematika, f.gorod, f.yazyk, f.ot, f.do, f.ohvat_ot, f.stavka_do, f.poisk].filter(
+    Boolean,
+  ).length
 }
 
 /** Фильтры → адресная строка. Пустые не пишем, чтобы ссылка была читаемой. */
@@ -74,7 +64,6 @@ export function vAdres(f: Filtry): string {
   const p = new URLSearchParams()
   if (f.tematika) p.set('tematika', f.tematika)
   if (f.gorod) p.set('gorod', f.gorod)
-  if (f.rayon) p.set('rayon', f.rayon)
   if (f.yazyk) p.set('yazyk', f.yazyk)
   if (f.ot) p.set('ot', f.ot)
   if (f.do) p.set('do', f.do)
@@ -92,7 +81,6 @@ export function izAdresa(stroka: string): Filtry {
   return {
     tematika: p.get('tematika') ?? '',
     gorod: p.get('gorod') ?? '',
-    rayon: p.get('rayon') ?? '',
     yazyk: p.get('yazyk') ?? '',
     ot: p.get('ot') ?? '',
     do: p.get('do') ?? '',

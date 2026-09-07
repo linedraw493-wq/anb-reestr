@@ -188,3 +188,54 @@ async def test_svezhiy_vhod_ne_dvigayut(klient, baza_conn):
     assert stalo == dolgo
     assert "sessiya=" not in otvet.headers.get("set-cookie", "")
     klient.cookies.clear()
+
+
+async def test_nomer_lyuboy_strany_i_semyorka_v_nachale():
+    """Слово владельца 07.09.2026: «чтобы нажатие 7-ки было нормой» и
+    «возможность делать номера других стран создай»."""
+    from app.vhod import normalizovat_telefon as n
+
+    # казахстанские: та же запись тремя способами — один номер
+    assert n("7471234567") == "+77471234567"
+    assert n("87471234567") == "+77471234567"
+    assert n("+7 747 123 45 67") == "+77471234567"
+    assert n("77471234567") == "+77471234567"
+    # другие страны — только с плюсом, иначе не отличить от местного
+    assert n("+442071838750") == "+442071838750"
+    assert n("+971 50 123 4567") == "+971501234567"
+    # мусор
+    assert n("123") is None
+    assert n("+1234567890123456") is None
+    assert n("") is None
+
+
+async def test_spiski_proveryayut_nazvanie(klient, baza_conn):
+    """Слово владельца: «сделай валидацию на количество символов в
+    категориях (городах)» и «чтобы всё было чётко»."""
+    from .conftest import otkryt_sessiyu, zavesti_cheloveka
+
+    admin = await zavesti_cheloveka(baza_conn, "+77040000001", rol="admin")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, admin))
+
+    async def dobavit(nazvanie: str):
+        return (
+            await klient.post(
+                "/api/moder/spisok",
+                json={"tip": "tematika", "chto": "dobavit", "nazvanie": nazvanie},
+            )
+        ).json()
+
+    assert (await dobavit("Я"))["reason"] == "bad-name"  # короче двух знаков
+    assert (await dobavit("А" * 41))["reason"] == "bad-name"  # длиннее сорока
+    assert (await dobavit("12345"))["reason"] == "bad-name"  # без единой буквы
+    assert (await dobavit("   "))["reason"] == "bad-name"
+
+    assert (await dobavit("Рыбалка"))["ok"] is True
+    # тот же город другими буквами — это тот же город
+    povtor = await dobavit("рыбалка")
+    assert povtor["reason"] == "zanyato" and povtor["est"] == "Рыбалка"
+    # двойные пробелы внутри схлопываются, иначе плодятся близнецы
+    assert (await dobavit("Рыбалка  и  охота"))["ok"] is True
+    est = [r["nazvanie"] for r in await baza_conn.fetch("select nazvanie from tematiki")]
+    assert "Рыбалка и охота" in est
+    klient.cookies.clear()

@@ -11,17 +11,14 @@ import { ktoYa, vyyti, type Ya } from '../lib/api'
  * «Админка» — всё хозяйство модератора спрятано под неё. Гость видит «Войти».
  */
 
-/**
- * Что видно в «Админке». `tolkoAdmin` — не украшение: те же двери закрыты
- * ролью и на сервере. Слово владельца 07.09.2026: у модератора одна работа
- * — проверка карточек, остальное админское.
- */
-const ADMINKA: { put: string; imya: string; tolkoAdmin?: boolean }[] = [
+/** Что видно в «Админке». Ролей две — блогер и админ, поэтому делить этот
+    список больше не на кого: всё показывается админу целиком. */
+const ADMINKA: { put: string; imya: string }[] = [
   { put: '/admin', imya: 'Проверка карточек' },
-  { put: '/admin/priglasheniya', imya: 'Приглашения', tolkoAdmin: true },
-  { put: '/admin/prava', imya: 'Права', tolkoAdmin: true },
-  { put: '/admin/spiski', imya: 'Списки', tolkoAdmin: true },
-  { put: '/admin/svodka', imya: 'Сводка', tolkoAdmin: true },
+  { put: '/admin/priglasheniya', imya: 'Приглашения' },
+  { put: '/admin/prava', imya: 'Права' },
+  { put: '/admin/spiski', imya: 'Списки' },
+  { put: '/admin/svodka', imya: 'Сводка' },
 ]
 
 export function Shapka() {
@@ -49,7 +46,7 @@ export function Shapka() {
   }, [menyu])
 
   const vnutri = ya?.vnutri === true
-  const moderator = vnutri && (ya.rol === 'moderator' || ya.rol === 'admin')
+  const admin = vnutri && ya.rol === 'admin'
 
   return (
     <div className="shapka">
@@ -72,14 +69,14 @@ export function Shapka() {
           </button>
         )}
 
-        {moderator && (
+        {admin && (
           <span className="menyu" ref={korobka}>
             <button className="linkbtn" onClick={() => setMenyu((v) => !v)}>
               Админка {menyu ? '▴' : '▾'}
             </button>
             {menyu && (
               <span className="menyu-spisok">
-                {ADMINKA.filter((p) => !p.tolkoAdmin || ya.rol === 'admin').map((p) => (
+                {ADMINKA.map((p) => (
                   <button
                     key={p.put}
                     className="menyu-punkt"

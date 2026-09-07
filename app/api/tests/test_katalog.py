@@ -68,13 +68,14 @@ async def test_snyataya_kartochka_ne_otdayotsya_po_pryamomu_adresu(klient, baza_
 #
 # Спека, день 4–5: «список с поиском по нику, сортировка по подписчикам и
 # охвату, фильтры: диапазон подписчиков, тематика, район, язык». По
-# подписчикам и нику проверки были и раньше — здесь остальное.
+# подписчикам и нику проверки были и раньше — здесь остальное. Район убран
+# 07.09.2026 словом владельца, вместо него в отборе остался город.
 
 
 async def _kartochka_s_otborom(
     conn, telefon: str, nik: str, *, podpischiki: int, ohvat: int,
     tematika: str | None = None, gorod: str | None = None,
-    rayon: str | None = None, yazyk: str | None = None,
+    yazyk: str | None = None,
 ) -> int:
     kto = await zavesti_cheloveka(conn, telefon)
     kid = await zavesti_kartochku(conn, kto, nik, podpischiki, ohvat=ohvat)
@@ -83,11 +84,6 @@ async def _kartochka_s_otborom(
     if gorod:
         gid = await conn.fetchval("select id from goroda where nazvanie = $1", gorod)
         await conn.execute("update kartochki set gorod_id = $2 where id = $1", kid, gid)
-        if rayon:
-            rid = await conn.fetchval(
-                "select id from rayony where gorod_id = $1 and nazvanie = $2", gid, rayon
-            )
-            await conn.execute("update kartochki set rayon_id = $2 where id = $1", kid, rid)
     if tematika:
         tid = await conn.fetchval("select id from tematiki where nazvanie = $1", tematika)
         await conn.execute(
@@ -98,20 +94,13 @@ async def _kartochka_s_otborom(
     return kid
 
 
-async def test_otbor_po_tematike_gorodu_rayonu_i_yazyku(klient, baza_conn):
+async def test_otbor_po_tematike_gorodu_i_yazyku(klient, baza_conn):
     tematika = await baza_conn.fetchval("select nazvanie from tematiki where vidna limit 1")
-    gorod = await baza_conn.fetchval(
-        "select g.nazvanie from goroda g join rayony r on r.gorod_id = g.id limit 1"
-    )
-    rayon = await baza_conn.fetchval(
-        "select r.nazvanie from rayony r join goroda g on g.id = r.gorod_id"
-        " where g.nazvanie = $1 limit 1",
-        gorod,
-    )
+    gorod = await baza_conn.fetchval("select nazvanie from goroda limit 1")
 
     await _kartochka_s_otborom(
         baza_conn, "+77015000001", "@podhodit_vsemu", podpischiki=4000, ohvat=800,
-        tematika=tematika, gorod=gorod, rayon=rayon, yazyk="Русский",
+        tematika=tematika, gorod=gorod, yazyk="Русский",
     )
     await _kartochka_s_otborom(
         baza_conn, "+77015000002", "@ne_podhodit", podpischiki=4000, ohvat=800,
@@ -125,7 +114,6 @@ async def test_otbor_po_tematike_gorodu_rayonu_i_yazyku(klient, baza_conn):
     assert "@podhodit_vsemu" in await niki(tematika=tematika)
     assert "@ne_podhodit" not in await niki(tematika=tematika)
     assert "@podhodit_vsemu" in await niki(gorod=gorod)
-    assert "@podhodit_vsemu" in await niki(gorod=gorod, rayon=rayon)
     assert "@podhodit_vsemu" in await niki(yazyk="Русский")
     assert "@podhodit_vsemu" not in await niki(yazyk="Казахский")
 

@@ -1,28 +1,48 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /* ---------------------------------------------------------------------------
-   Списки, из которых человек выбирает: тематики, города, районы.
-   Спека прямо требует: «администратор ведёт базу без разработчика».
+   Списки, из которых человек выбирает: тематики и города. Спека прямо
+   требует: «администратор ведёт базу без разработчика».
 
-   Удаления здесь нет намеренно. Удалишь тематику — поедут все карточки, где
-   она стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
-   А чтобы можно было прибраться — слияние: перенести всех из одного в другой.
+   Районов здесь больше нет — убраны 07.09.2026 словом владельца («убери
+   район где адрес»), вместе с ними ушло и слияние: оно было нужно, чтобы
+   прибирать наплодившиеся районы. Слово того же дня: «убери слить в городе».
+
+   Удаления нет намеренно. Удалишь тематику — поедут все карточки, где она
+   стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
 --------------------------------------------------------------------------- */
 
 type Stroka = { id: number; nazvanie: string; skolko: number; vidna?: boolean; vidno?: boolean }
-type Rayon = Stroka & { gorod: string; gorod_id: number }
-type Spiski = { tematiki: Stroka[]; goroda: Stroka[]; rayony: Rayon[] }
+type Spiski = { tematiki: Stroka[]; goroda: Stroka[] }
 
-type Tip = 'tematika' | 'gorod' | 'rayon'
+type Tip = 'tematika' | 'gorod'
 
 const VKLADKI: { key: Tip; label: string }[] = [
   { key: 'tematika', label: 'Тематики' },
   { key: 'gorod', label: 'Города' },
-  { key: 'rayon', label: 'Районы' },
 ]
+
+/** Границы названия. Короче — это опечатка, длиннее — не влезет в фильтры. */
+const MIN_DLINA = 2
+const MAX_DLINA = 40
+
+/** Что не так с названием. Пусто — всё хорошо. */
+function chtoNeTak(nazvanie: string, tip: Tip, est: Stroka[], krome?: number): string | null {
+  const chisto = nazvanie.trim()
+  const chto = tip === 'tematika' ? 'Тематика' : 'Город'
+  if (chisto.length < MIN_DLINA)
+    return `${chto}: слишком коротко, нужно хотя бы ${MIN_DLINA} буквы.`
+  if (chisto.length > MAX_DLINA)
+    return `${chto}: слишком длинно — не больше ${MAX_DLINA} символов, иначе не влезет в фильтры.`
+  if (!/[\p{L}]/u.test(chisto)) return `${chto}: в названии должны быть буквы.`
+  const zanyato = est.some(
+    (s) => s.id !== krome && s.nazvanie.trim().toLowerCase() === chisto.toLowerCase(),
+  )
+  if (zanyato) return `«${chisto}» уже есть в списке.`
+  return null
+}
 
 export default function SpiskiEkran() {
   const navigate = useNavigate()
@@ -31,7 +51,7 @@ export default function SpiskiEkran() {
   const [netPrav, setNetPrav] = useState(false)
   const [zanyat, setZanyat] = useState(false)
   const [novoe, setNovoe] = useState('')
-  const [slit, setSlit] = useState<Stroka | null>(null)
+  const [beda, setBeda] = useState<string | null>(null)
 
   const perechitat = useCallback(async () => {
     const otvet = await fetch('/api/moder/spiski', { credentials: 'same-origin' })
@@ -46,16 +66,26 @@ export default function SpiskiEkran() {
     void perechitat()
   }, [perechitat])
 
+  /** Сервер проверяет то же самое ещё раз — экран можно обойти. Если он
+      всё-таки отказал, показываем его причину, а не молчим. */
   async function pravka(telo: Record<string, unknown>) {
     setZanyat(true)
-    await fetch('/api/moder/spisok', {
+    const otvet = await fetch('/api/moder/spisok', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tip: vkladka, ...telo }),
       credentials: 'same-origin',
     })
+    const d = (await otvet.json()) as { ok: boolean; reason?: string; est?: string }
     setZanyat(false)
-    setSlit(null)
+    if (!d.ok) {
+      if (d.reason === 'zanyato') setBeda(`«${d.est}» уже есть в списке.`)
+      else if (d.reason === 'bad-name')
+        setBeda(`Название не подходит: от ${MIN_DLINA} до ${MAX_DLINA} символов, и с буквами.`)
+      else setBeda('Не вышло сохранить. Попробуйте ещё раз.')
+      await perechitat()
+      return
+    }
     await perechitat()
   }
 
@@ -64,7 +94,6 @@ export default function SpiskiEkran() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
-          <Nadpis slovo="СПИСКИ" />
           <h1>Сюда нельзя</h1>
           <p className="sub">Списки правит администратор Ассоциации.</p>
         </header>
@@ -83,20 +112,29 @@ export default function SpiskiEkran() {
     )
   }
 
-  const stroki: Stroka[] =
-    vkladka === 'tematika' ? dannye.tematiki : vkladka === 'gorod' ? dannye.goroda : dannye.rayony
-  const vidno = (s: Stroka) => s.vidna ?? s.vidno ?? true
+  const stroki = vkladka === 'tematika' ? dannye.tematiki : dannye.goroda
+  const vidno = (s: Stroka) => (vkladka === 'tematika' ? s.vidna : s.vidno) !== false
+
+  function dobavit() {
+    const oshibka = chtoNeTak(novoe, vkladka, stroki)
+    if (oshibka) {
+      setBeda(oshibka)
+      return
+    }
+    setBeda(null)
+    void pravka({ chto: 'dobavit', nazvanie: novoe.trim() })
+    setNovoe('')
+  }
 
   return (
-    <div className="form-page">
+    <div className="form-page narrow">
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="СПИСКИ" />
         <div className="wordmark">Ассоциация блогеров · списки</div>
         <h1>Списки для выбора</h1>
         <p className="sub">
-          Из этих списков блогер выбирает тематику и адрес, по ним же работают фильтры каталога.
-          Удаления нет: скрытая строка пропадает из выбора, но у старых карточек остаётся.
+          Из этих строк блогер выбирает в своей карточке, а рекламодатель — в фильтрах каталога.
+          Правьте их сами, без нас.
         </p>
       </header>
 
@@ -107,7 +145,7 @@ export default function SpiskiEkran() {
             className={`tab${vkladka === v.key ? ' on' : ''}`}
             onClick={() => {
               setVkladka(v.key)
-              setSlit(null)
+              setBeda(null)
             }}
           >
             {v.label}
@@ -115,58 +153,29 @@ export default function SpiskiEkran() {
         ))}
       </div>
 
-      {vkladka !== 'rayon' && (
-        <div className="paste dobavlenie">
-          <input
-            className="input"
-            value={novoe}
-            placeholder={vkladka === 'tematika' ? 'Новая тематика' : 'Новый город'}
-            onChange={(e) => setNovoe(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && novoe.trim()) {
-                void pravka({ chto: 'dobavit', nazvanie: novoe.trim() })
-                setNovoe('')
-              }
-            }}
-          />
-          <button
-            className="btn small"
-            disabled={!novoe.trim() || zanyat}
-            onClick={() => {
-              void pravka({ chto: 'dobavit', nazvanie: novoe.trim() })
-              setNovoe('')
-            }}
-          >
-            Добавить
-          </button>
-        </div>
-      )}
+      <div className="paste dobavlenie">
+        <input
+          className={`input${beda ? ' bad' : ''}`}
+          value={novoe}
+          maxLength={MAX_DLINA}
+          placeholder={vkladka === 'tematika' ? 'Новая тематика' : 'Новый город'}
+          onChange={(e) => {
+            setNovoe(e.target.value)
+            setBeda(null)
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && dobavit()}
+        />
+        <button className="btn small" disabled={!novoe.trim() || zanyat} onClick={dobavit}>
+          Добавить
+        </button>
+      </div>
 
-      {slit && (
-        <div className="slitie" role="dialog" aria-label="Слияние">
-          <p className="v-txt">
-            Перенести всех из <b>«{slit.nazvanie}»</b> ({slit.skolko}) в какую строку?
-          </p>
-          <p className="fine">
-            Все карточки переедут, а «{slit.nazvanie}» скроется из выбора. Отменить нельзя.
-          </p>
-          <div className="chips">
-            {stroki
-              .filter((s) => s.id !== slit.id && vidno(s))
-              .map((s) => (
-                <button
-                  key={s.id}
-                  className="chip"
-                  disabled={zanyat}
-                  onClick={() => void pravka({ chto: 'slit', iz_id: slit.id, v_id: s.id })}
-                >
-                  → {s.nazvanie}
-                </button>
-              ))}
-          </div>
-          <button className="linkbtn" onClick={() => setSlit(null)}>
-            отмена
-          </button>
+      {beda && (
+        <div className="note err" role="alert">
+          <span className="dot" aria-hidden="true">
+            !
+          </span>
+          <span>{beda}</span>
         </div>
       )}
 
@@ -176,14 +185,24 @@ export default function SpiskiEkran() {
             <input
               className="input bare-name"
               defaultValue={s.nazvanie}
+              maxLength={MAX_DLINA}
               aria-label={`Название: ${s.nazvanie}`}
               onBlur={(e) => {
                 const novoeImya = e.target.value.trim()
-                if (novoeImya && novoeImya !== s.nazvanie)
-                  void pravka({ chto: 'pereimenovat', id: s.id, nazvanie: novoeImya })
+                if (!novoeImya || novoeImya === s.nazvanie) {
+                  e.target.value = s.nazvanie
+                  return
+                }
+                const oshibka = chtoNeTak(novoeImya, vkladka, stroki, s.id)
+                if (oshibka) {
+                  setBeda(oshibka)
+                  e.target.value = s.nazvanie
+                  return
+                }
+                setBeda(null)
+                void pravka({ chto: 'pereimenovat', id: s.id, nazvanie: novoeImya })
               }}
             />
-            {'gorod' in s && <span className="sp-gorod">{(s as Rayon).gorod}</span>}
             <span className="sp-skolko" title="в скольких карточках стоит">
               {s.skolko}
             </span>
@@ -194,16 +213,13 @@ export default function SpiskiEkran() {
             >
               {vidno(s) ? 'скрыть' : 'вернуть'}
             </button>
-            <button className="linkbtn" disabled={zanyat} onClick={() => setSlit(s)}>
-              слить
-            </button>
           </li>
         ))}
       </ul>
 
       <p className="fine">
         Число рядом — в скольких карточках строка стоит сейчас. Переименование безопасно: карточки
-        не трогаются, меняется только надпись.
+        не трогаются, меняется только надпись. Название — от {MIN_DLINA} до {MAX_DLINA} символов.
       </p>
     </div>
   )

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ktoYa, moderApi, NetDostupa } from '../lib/api'
+import { moderApi, NetDostupa } from '../lib/api'
 import {
   initsialy,
   razdelit,
   STATUS_NAZVANIE,
+  STATUS_POYASNENIE,
+  STATUS_VID,
   ton,
   type CardStatus,
   type Karta,
@@ -13,16 +15,18 @@ import {
 } from '../lib/card'
 import { razobratVse } from '../lib/seti'
 import { USE_FAKE } from '../lib/rezhim'
-import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
+import { MAX_TEMATIK, useSpravochniki } from '../lib/spravochniki'
 import { Preview } from '../ui/Preview'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
+/* Порядок вкладок — по срочности: сначала то, где ждут решения. Названия
+   те же, что видит блогер (`STATUS_NAZVANIE`), чтобы разговор про карточку
+   шёл на одном языке. */
 const VKLADKI: { key: CardStatus; label: string }[] = [
-  { key: 'moderation', label: 'На проверке' },
-  { key: 'published', label: 'В каталоге' },
-  { key: 'rejected', label: 'Отклонённые' },
-  { key: 'draft', label: 'Черновики' },
+  { key: 'moderation', label: STATUS_NAZVANIE.moderation },
+  { key: 'published', label: STATUS_NAZVANIE.published },
+  { key: 'rejected', label: STATUS_NAZVANIE.rejected },
+  { key: 'draft', label: STATUS_NAZVANIE.draft },
 ]
 
 /** Пустая вкладка — это чаще всего хорошая новость, а не поломка. */
@@ -37,21 +41,22 @@ const PUSTAYA_VKLADKA: Record<CardStatus, { zagolovok: string; poyasnenie: strin
     poyasnenie: 'Ни одна карточка ещё не опубликована. Разошлите приглашения блогерам.',
   },
   rejected: {
-    zagolovok: 'Отклонённых нет',
-    poyasnenie: 'Никому пока не отказывали. Причина отказа видна блогеру в его карточке.',
+    zagolovok: 'Возвращённых нет',
+    poyasnenie: 'Никому пока не отказывали. Причина возврата видна блогеру в его карточке.',
   },
   draft: {
-    zagolovok: 'Черновиков нет',
-    poyasnenie: 'Черновик — это карточка, которую блогер начал, но ещё не отправил.',
+    zagolovok: 'Незаполненных нет',
+    poyasnenie:
+      'Сюда попадают заготовки из таблицы Ассоциации и карточки, которые блогер начал, но не отправил.',
   },
 }
 
 /**
- * Инструмент проверки карточек.
+ * Инструмент проверки карточек — главный экран админки.
  *
- * Кто что видит (слово владельца 07.09.2026): модератор — только карточку,
- * скрин и решение «одобрить / отклонить». Правка полей, скрытие, удаление и
- * заведение карточки руками — админские, и на сервере закрыты тоже.
+ * Ролей две: блогер и админ. Сюда попадает только админ, поэтому экран
+ * ничего не прячет: правка полей, скрытие, удаление и заведение карточки
+ * руками — всё здесь. Сервер проверяет то же самое своей стороной.
  */
 export default function Moderator() {
   const navigate = useNavigate()
@@ -67,18 +72,7 @@ export default function Moderator() {
   const [prichiny, setPrichiny] = useState<string[]>([])
   const [zanyat, setZanyat] = useState(false)
   const [beda, setBeda] = useState<'net-prav' | 'net-svyazi' | null>(null)
-  const [admin, setAdmin] = useState(false)
   const pervyyRaz = useRef(true)
-
-  // Роль решает, что вообще показывать на экране. Пока не знаем — считаем
-  // модератором: лишнюю кнопку показать хуже, чем показать её на миг позже.
-  useEffect(() => {
-    let zhiv = true
-    void ktoYa().then((ya) => zhiv && setAdmin(ya.vnutri === true && ya.rol === 'admin'))
-    return () => {
-      zhiv = false
-    }
-  }, [])
 
   /* Страницами и по вкладке: раньше экран тянул все 306 карточек разом и
      ждал секунды. Теперь сервер отдаёт одну вкладку по пятьдесят штук. */
@@ -155,7 +149,6 @@ export default function Moderator() {
       <div className="form-page narrow">
         <Shapka />
         <header className="form-head">
-          <Nadpis slovo="ПРОВЕРКА" />
           <h1>{beda === 'net-prav' ? 'Сюда нельзя' : 'Сервер не отвечает'}</h1>
           <p className="sub">
             {beda === 'net-prav'
@@ -177,13 +170,11 @@ export default function Moderator() {
     <div className={`form-page moder${vybran ? ' open' : ''}`}>
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="ПРОВЕРКА" />
-        <div className="wordmark">Ассоциация блогеров · модератор</div>
+        <div className="wordmark">Ассоциация блогеров · админка</div>
         <h1>Проверка карточек</h1>
         <p className="sub">
-          {admin
-            ? 'Проверка при регистрации временно выключена — карточки идут в каталог сразу. Отсюда их всё равно можно править, скрывать и возвращать.'
-            : 'Смотрите карточку и скрин, потом решайте: одобрить или отказать с причиной. Причину блогер увидит и по ней исправит карточку.'}
+          Проверка при регистрации временно выключена — карточки идут в каталог сразу. Отсюда их всё
+          равно можно править, скрывать и возвращать.
         </p>
       </header>
 
@@ -208,23 +199,21 @@ export default function Moderator() {
             ))}
           </div>
 
-          {admin && (
-            <button
-              className="btn small ghost wide"
-              disabled={zanyat}
-              onClick={() =>
-                void deystvie(async () => {
-                  const telefon = prompt('Номер телефона блогера (можно оставить пустым):') ?? ''
-                  const nik = prompt('Ник блогера:') ?? ''
-                  const z = await moderApi.create(telefon, nik)
-                  setVkladka('draft')
-                  setVybran(z.karta.id)
-                }, 'ostavit')
-              }
-            >
-              + Завести карточку вручную
-            </button>
-          )}
+          <button
+            className="btn small ghost wide"
+            disabled={zanyat}
+            onClick={() =>
+              void deystvie(async () => {
+                const telefon = prompt('Номер телефона блогера (можно оставить пустым):') ?? ''
+                const nik = prompt('Ник блогера:') ?? ''
+                const z = await moderApi.create(telefon, nik)
+                setVkladka('draft')
+                setVybran(z.karta.id)
+              }, 'ostavit')
+            }
+          >
+            + Завести карточку вручную
+          </button>
 
           {spisok.length === 0 ? (
             <div className="pusto malo">
@@ -313,9 +302,10 @@ export default function Moderator() {
               </button>
 
               <div className="detail-head">
-                <span className={`pill ${statusPill(tekushchaya.status)}`}>
+                <span className={`pill ${STATUS_VID[tekushchaya.status]}`}>
                   {STATUS_NAZVANIE[tekushchaya.status]}
                 </span>
+                <span className="fine">{STATUS_POYASNENIE[tekushchaya.status]}</span>
                 <span className="fine">подана {tekushchaya.podana}</span>
               </div>
 
@@ -357,184 +347,163 @@ export default function Moderator() {
 
               <ProverkaBlok k={pravka} />
 
-              {/* правка — админская: модератор карточку не переписывает */}
-              {admin && (
-                <section className="block">
-                  <h2>Правка</h2>
+              <section className="block">
+                <h2>Правка</h2>
 
+                <label className="fld">
+                  <span className="field-label">Ник</span>
+                  <input
+                    className="input"
+                    value={pravka.nick}
+                    onChange={(e) => setPravka({ ...pravka, nick: e.target.value })}
+                  />
+                </label>
+
+                <div className="two">
                   <label className="fld">
-                    <span className="field-label">Ник</span>
+                    <span className="field-label">Подписчики</span>
                     <input
                       className="input"
-                      value={pravka.nick}
-                      onChange={(e) => setPravka({ ...pravka, nick: e.target.value })}
+                      inputMode="numeric"
+                      value={razdelit(pravka.followers)}
+                      onChange={(e) =>
+                        setPravka({ ...pravka, followers: e.target.value.replace(/\D/g, '') })
+                      }
                     />
                   </label>
+                  <label className="fld">
+                    <span className="field-label">Охват</span>
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      value={razdelit(pravka.reach)}
+                      onChange={(e) =>
+                        setPravka({ ...pravka, reach: e.target.value.replace(/\D/g, '') })
+                      }
+                    />
+                  </label>
+                </div>
 
-                  <div className="two">
-                    <label className="fld">
-                      <span className="field-label">Подписчики</span>
-                      <input
-                        className="input"
-                        inputMode="numeric"
-                        value={razdelit(pravka.followers)}
-                        onChange={(e) =>
-                          setPravka({ ...pravka, followers: e.target.value.replace(/\D/g, '') })
-                        }
-                      />
-                    </label>
-                    <label className="fld">
-                      <span className="field-label">Охват</span>
-                      <input
-                        className="input"
-                        inputMode="numeric"
-                        value={razdelit(pravka.reach)}
-                        onChange={(e) =>
-                          setPravka({ ...pravka, reach: e.target.value.replace(/\D/g, '') })
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  {/* Пометка достоверности — спека, день 5. Модератор сверил
+                {/* Пометка достоверности — спека, день 5. Модератор сверил
                     цифры со скрином сам: ставит «со скрина». Не сошлось —
                     возвращает на «со слов», и в каталоге это видно всем. */}
-                  <div className="fld">
-                    <span className="field-label">Откуда цифры</span>
-                    <div className="chips">
-                      <button
-                        className={`chip${pravka.istochnik === 'screen' ? ' on' : ''}`}
-                        onClick={() => setPravka({ ...pravka, istochnik: 'screen' })}
-                      >
-                        со скрина — проверено
-                      </button>
-                      <button
-                        className={`chip${pravka.istochnik === 'words' ? ' on' : ''}`}
-                        onClick={() => setPravka({ ...pravka, istochnik: 'words' })}
-                      >
-                        со слов
-                      </button>
-                    </div>
+                <div className="fld">
+                  <span className="field-label">Откуда цифры</span>
+                  <div className="chips">
+                    <button
+                      className={`chip${pravka.istochnik === 'screen' ? ' on' : ''}`}
+                      onClick={() => setPravka({ ...pravka, istochnik: 'screen' })}
+                    >
+                      со скрина — проверено
+                    </button>
+                    <button
+                      className={`chip${pravka.istochnik === 'words' ? ' on' : ''}`}
+                      onClick={() => setPravka({ ...pravka, istochnik: 'words' })}
+                    >
+                      со слов
+                    </button>
                   </div>
+                </div>
 
-                  <div className="two">
-                    <label className="fld">
-                      <span className="field-label">Город</span>
-                      <select
-                        className="input"
-                        value={pravka.gorod}
-                        onChange={(e) => setPravka({ ...pravka, gorod: e.target.value, rayon: '' })}
-                      >
-                        <option value="">Выберите</option>
-                        {Object.keys(spr.goroda).map((g) => (
-                          <option key={g} value={g}>
-                            {g}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="fld">
-                      <span className="field-label">Район</span>
-                      <select
-                        className="input"
-                        value={pravka.rayon}
-                        disabled={!nuzhenRayon(pravka.gorod)}
-                        onChange={(e) => setPravka({ ...pravka, rayon: e.target.value })}
-                      >
-                        <option value="">
-                          {nuzhenRayon(pravka.gorod) ? 'Выберите' : 'Не нужен'}
+                <div className="two">
+                  <label className="fld">
+                    <span className="field-label">Город</span>
+                    <select
+                      className="input"
+                      value={pravka.gorod}
+                      onChange={(e) => setPravka({ ...pravka, gorod: e.target.value })}
+                    >
+                      <option value="">Выберите</option>
+                      {Object.keys(spr.goroda).map((g) => (
+                        <option key={g} value={g}>
+                          {g}
                         </option>
-                        {(spr.goroda[pravka.gorod] ?? []).map((r: string) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
-                  <div className="fld">
-                    <span className="field-label">Тематика · до {MAX_TEMATIK}</span>
-                    <div className="chips">
-                      {spr.tematiki.map((t: string) => {
-                        const on = pravka.tematiki.includes(t)
-                        return (
+                <div className="fld">
+                  <span className="field-label">Тематика · до {MAX_TEMATIK}</span>
+                  <div className="chips">
+                    {spr.tematiki.map((t: string) => {
+                      const on = pravka.tematiki.includes(t)
+                      return (
+                        <button
+                          key={t}
+                          className={`chip${on ? ' on' : ''}`}
+                          disabled={!on && pravka.tematiki.length >= MAX_TEMATIK}
+                          onClick={() =>
+                            setPravka({
+                              ...pravka,
+                              tematiki: on
+                                ? pravka.tematiki.filter((x) => x !== t)
+                                : [...pravka.tematiki, t],
+                            })
+                          }
+                        >
+                          {t}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="fld">
+                  <span className="field-label">Язык</span>
+                  <div className="chips">
+                    {spr.yazyki.map((y: string) => (
+                      <button
+                        key={y}
+                        className={`chip${pravka.yazyk === y ? ' on' : ''}`}
+                        onClick={() => setPravka({ ...pravka, yazyk: y })}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="fld">
+                  <span className="field-label">Ссылки на профили</span>
+                  {pravka.ssylki.length === 0 ? (
+                    <p className="fine">Не указаны.</p>
+                  ) : (
+                    <ul className="links">
+                      {razobratVse(pravka.ssylki).map((s) => (
+                        <li key={s.url}>
+                          <span className="ic" aria-hidden="true">
+                            {s.short}
+                          </span>
+                          <span className="link-txt">
+                            <span className="link-nm">{s.name}</span>
+                            <span className="link-h">{s.handle}</span>
+                          </span>
                           <button
-                            key={t}
-                            className={`chip${on ? ' on' : ''}`}
-                            disabled={!on && pravka.tematiki.length >= MAX_TEMATIK}
+                            className="linkbtn"
                             onClick={() =>
                               setPravka({
                                 ...pravka,
-                                tematiki: on
-                                  ? pravka.tematiki.filter((x) => x !== t)
-                                  : [...pravka.tematiki, t],
+                                ssylki: pravka.ssylki.filter((u) => u !== s.url),
                               })
                             }
                           >
-                            {t}
+                            Убрать
                           </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="fld">
-                    <span className="field-label">Язык</span>
-                    <div className="chips">
-                      {spr.yazyki.map((y: string) => (
-                        <button
-                          key={y}
-                          className={`chip${pravka.yazyk === y ? ' on' : ''}`}
-                          onClick={() => setPravka({ ...pravka, yazyk: y })}
-                        >
-                          {y}
-                        </button>
+                        </li>
                       ))}
-                    </div>
-                  </div>
+                    </ul>
+                  )}
+                </div>
 
-                  <div className="fld">
-                    <span className="field-label">Ссылки на профили</span>
-                    {pravka.ssylki.length === 0 ? (
-                      <p className="fine">Не указаны.</p>
-                    ) : (
-                      <ul className="links">
-                        {razobratVse(pravka.ssylki).map((s) => (
-                          <li key={s.url}>
-                            <span className="ic" aria-hidden="true">
-                              {s.short}
-                            </span>
-                            <span className="link-txt">
-                              <span className="link-nm">{s.name}</span>
-                              <span className="link-h">{s.handle}</span>
-                            </span>
-                            <button
-                              className="linkbtn"
-                              onClick={() =>
-                                setPravka({
-                                  ...pravka,
-                                  ssylki: pravka.ssylki.filter((u) => u !== s.url),
-                                })
-                              }
-                            >
-                              Убрать
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  <button
-                    className="btn ghost"
-                    disabled={zanyat}
-                    onClick={() => void deystvie(() => moderApi.update(pravka), 'ostavit')}
-                  >
-                    Сохранить правки
-                  </button>
-                </section>
-              )}
+                <button
+                  className="btn ghost"
+                  disabled={zanyat}
+                  onClick={() => void deystvie(() => moderApi.update(pravka), 'ostavit')}
+                >
+                  Сохранить правки
+                </button>
+              </section>
 
               {/* -------------------------------------------------- решение */}
               <section className="block">
@@ -544,9 +513,7 @@ export default function Moderator() {
                   disabled={zanyat || tekushchaya.status === 'published'}
                   onClick={() =>
                     void deystvie(async () => {
-                      // Правки сохраняет только админ: у модератора этой
-                      // двери нет ни на экране, ни на сервере.
-                      if (admin) await moderApi.update(pravka)
+                      await moderApi.update(pravka)
                       await moderApi.approve(pravka.id)
                     })
                   }
@@ -588,46 +555,42 @@ export default function Moderator() {
                   Отклонить
                 </button>
 
-                {admin && (
-                  <>
-                    {tekushchaya.status === 'published' ? (
-                      <button
-                        className="btn ghost"
-                        disabled={zanyat}
-                        onClick={() => void deystvie(() => moderApi.skryt(pravka.id, true))}
-                      >
-                        Скрыть из каталога
-                      </button>
-                    ) : (
-                      <button
-                        className="btn ghost"
-                        disabled={zanyat}
-                        onClick={() => void deystvie(() => moderApi.skryt(pravka.id, false))}
-                      >
-                        Вернуть в каталог
-                      </button>
-                    )}
-                    <p className="fine">
-                      Скрытая карточка пропадает из каталога, но данные целы и её можно вернуть.
-                    </p>
-
-                    <button
-                      className="btn danger"
-                      disabled={zanyat}
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Удалить ${pravka.nick} НАВСЕГДА? Вместе с карточкой пропадёт человек ` +
-                              `и его приглашение. Если нужно просто убрать из каталога — жмите «Скрыть».`,
-                          )
-                        )
-                          void deystvie(() => moderApi.remove(pravka.id))
-                      }}
-                    >
-                      Удалить навсегда
-                    </button>
-                  </>
+                {tekushchaya.status === 'published' ? (
+                  <button
+                    className="btn ghost"
+                    disabled={zanyat}
+                    onClick={() => void deystvie(() => moderApi.skryt(pravka.id, true))}
+                  >
+                    Скрыть из каталога
+                  </button>
+                ) : (
+                  <button
+                    className="btn ghost"
+                    disabled={zanyat}
+                    onClick={() => void deystvie(() => moderApi.skryt(pravka.id, false))}
+                  >
+                    Вернуть в каталог
+                  </button>
                 )}
+                <p className="fine">
+                  Скрытая карточка пропадает из каталога, но данные целы и её можно вернуть.
+                </p>
+
+                <button
+                  className="btn danger"
+                  disabled={zanyat}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Удалить ${pravka.nick} НАВСЕГДА? Вместе с карточкой пропадёт человек ` +
+                          `и его приглашение. Если нужно просто убрать из каталога — жмите «Скрыть».`,
+                      )
+                    )
+                      void deystvie(() => moderApi.remove(pravka.id))
+                  }}
+                >
+                  Удалить навсегда
+                </button>
               </section>
             </div>
           )}
@@ -695,10 +658,4 @@ function ProverkaBlok({ k }: { k: Karta }) {
       )}
     </div>
   )
-}
-
-function statusPill(s: CardStatus): string {
-  if (s === 'published') return 'ok'
-  if (s === 'rejected') return 'say'
-  return 'neutral'
 }

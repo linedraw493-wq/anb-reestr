@@ -10,10 +10,9 @@ import {
   type ReadResult,
 } from '../lib/card'
 import { razobrat, razobratVse } from '../lib/seti'
-import { MAX_TEMATIK, nuzhenRayon, useSpravochniki } from '../lib/spravochniki'
+import { MAX_TEMATIK, useSpravochniki } from '../lib/spravochniki'
 import { USE_FAKE } from '../lib/rezhim'
 import { Preview } from '../ui/Preview'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 type ScreenState = 'empty' | 'reading' | 'done' | 'failed'
@@ -132,14 +131,17 @@ export default function Card() {
   }
 
   const nedostaet = OBYAZATELNO.filter((f) => !f.done(k))
-  const rayony = spr.goroda[k.gorod] ?? []
+  /* Слово владельца 07.09.2026: «обязательные поля при регистрации должны
+     подсвечиваться ярко красным». Подсвечиваем не сразу — человек только
+     открыл форму, он ещё ничего не пропустил, — а после первой попытки
+     отправить. Класс `trebuem` красит рамку и подпись. */
+  const nado = (key: string) => (tried && nedostaet.some((f) => f.key === key) ? ' trebuem' : '')
   const seti = razobratVse(k.ssylki)
 
   return (
     <div className="form-page">
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="КАРТОЧКА" />
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>Ваша карточка</h1>
         <p className="sub">
@@ -164,7 +166,7 @@ export default function Card() {
             <Preview k={k} />
             <ul className="ready">
               {OBYAZATELNO.map((f) => (
-                <li key={f.key} className={f.done(k) ? 'on' : ''}>
+                <li key={f.key} className={f.done(k) ? 'on' : tried ? 'trebuem' : ''}>
                   <span className="tick" aria-hidden="true">
                     {f.done(k) ? '✓' : '○'}
                   </span>
@@ -206,17 +208,43 @@ export default function Card() {
               />
             </div>
 
-            <label className="fld">
+            <label className={`fld${nado('nick')}`}>
               <span className="field-label">Ник</span>
               <input
-                className="input"
+                className={`input${nado('nick')}`}
                 value={k.nick}
                 placeholder="@vash.nick"
                 onChange={(e) => set('nick', e.target.value)}
               />
+              {nado('nick') && <span className="trebuem-txt">Без ника карточку не найдут</span>}
             </label>
 
-            <div className="fld">
+            <label className="fld">
+              <span className="field-label">Имя и фамилия · по желанию</span>
+              <input
+                className="input"
+                value={k.fio}
+                maxLength={120}
+                placeholder="Айгерим Сериковна"
+                onChange={(e) => set('fio', e.target.value)}
+              />
+              <span className="fine">Рекламодателю проще писать человеку по имени, чем нику.</span>
+            </label>
+
+            <label className="fld">
+              <span className="field-label">О себе · по желанию</span>
+              <textarea
+                className="input pole-bio"
+                value={k.bio}
+                maxLength={400}
+                rows={3}
+                placeholder="Пара строк: о чём ваш блог и кто вас читает"
+                onChange={(e) => set('bio', e.target.value)}
+              />
+              <span className="fine">{k.bio.length} из 400 знаков</span>
+            </label>
+
+            <div className={`fld${nado('ssylki')}`}>
               <span className="field-label">Ссылки на профили · хотя бы одна</span>
               <div className="paste">
                 <input
@@ -325,11 +353,11 @@ export default function Card() {
             />
 
             <div className="two">
-              <label className="fld">
+              <label className={`fld${nado('followers')}`}>
                 <span className="field-label">Подписчики</span>
                 <span className="input-wrap">
                   <input
-                    className="input"
+                    className={`input${nado('followers')}`}
                     inputMode="numeric"
                     value={razdelit(k.followers)}
                     placeholder="48 200"
@@ -344,10 +372,10 @@ export default function Card() {
                 </span>
               </label>
 
-              <label className="fld">
+              <label className={`fld${nado('reach')}`}>
                 <span className="field-label">Охват одного поста</span>
                 <input
-                  className="input"
+                  className={`input${nado('reach')}`}
                   inputMode="numeric"
                   value={razdelit(k.reach)}
                   placeholder="12 400"
@@ -368,7 +396,7 @@ export default function Card() {
               <span className="field-label">
                 Тематика · до {MAX_TEMATIK} · выбрано {k.tematiki.length}
               </span>
-              <div className="chips">
+              <div className={`chips${nado('tematiki')}`}>
                 {spr.tematiki.map((t: string) => {
                   const on = k.tematiki.includes(t)
                   return (
@@ -386,47 +414,25 @@ export default function Card() {
               </div>
             </div>
 
-            <div className="two">
-              <label className="fld">
-                <span className="field-label">Город</span>
-                <select
-                  className="input"
-                  value={k.gorod}
-                  onChange={(e) => {
-                    set('gorod', e.target.value)
-                    set('rayon', '')
-                  }}
-                >
-                  <option value="">Выберите</option>
-                  {Object.keys(spr.goroda).map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <label className={`fld${nado('gorod')}`}>
+              <span className="field-label">Город</span>
+              <select
+                className={`input${nado('gorod')}`}
+                value={k.gorod}
+                onChange={(e) => {
+                  set('gorod', e.target.value)
+                }}
+              >
+                <option value="">Выберите</option>
+                {Object.keys(spr.goroda).map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-              <label className="fld">
-                <span className="field-label">
-                  Район{k.gorod && nuzhenRayon(k.gorod) ? '' : ' · если есть'}
-                </span>
-                <select
-                  className="input"
-                  value={k.rayon}
-                  disabled={rayony.length === 0}
-                  onChange={(e) => set('rayon', e.target.value)}
-                >
-                  <option value="">{rayony.length ? 'Выберите' : 'Не нужен'}</option>
-                  {rayony.map((r: string) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="fld">
+            <div className={`fld${nado('yazyk')}`}>
               <span className="field-label">Язык контента</span>
               <div className="chips">
                 {spr.yazyki.map((y: string) => (
@@ -521,7 +527,6 @@ function Sent({ k, published, pravit }: { k: Karta; published: boolean; pravit: 
     <div className="form-page narrow">
       <Shapka />
       <header className="form-head">
-        <Nadpis slovo="КАРТОЧКА" />
         <div className="wordmark">Ассоциация блогеров</div>
         <h1>{published ? 'Карточка в каталоге' : 'Карточка на проверке'}</h1>
         <p className="sub">

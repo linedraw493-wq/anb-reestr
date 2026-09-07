@@ -3,7 +3,7 @@ import { razobratVse } from '../lib/seti'
 
 /** Карточка ровно в том виде, в каком её увидит рекламодатель в каталоге. */
 export function Preview({ k }: { k: Karta }) {
-  const mesto = [k.gorod, k.rayon].filter(Boolean).join(', ')
+  const mesto = k.gorod
   const podpis = [...k.tematiki, mesto].filter(Boolean).join(' · ')
   const seti = razobratVse(k.ssylki)
 

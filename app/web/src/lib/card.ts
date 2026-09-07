@@ -1,11 +1,13 @@
-import { nuzhenRayon } from './spravochniki'
-
 /** Откуда взялась цифра — это видит рекламодатель. Требование спеки. */
 export type Istochnik = 'screen' | 'words'
 
 export type Karta = {
   id: string
   nick: string
+  /** имя и фамилия — по желанию, 07.09.2026 */
+  fio: string
+  /** короткий рассказ о себе, до 400 знаков */
+  bio: string
   photo: string | null
   /** вставленные ссылки на профили — сеть определяется по ссылке */
   ssylki: string[]
@@ -20,7 +22,6 @@ export type Karta = {
   proverka: Proverka | null
   tematiki: string[]
   gorod: string
-  rayon: string
   yazyk: string
   stavka: string
   dogovornaya: boolean
@@ -98,6 +99,8 @@ export interface ModerApi {
 export const pustayaKarta: Karta = {
   id: '',
   nick: '',
+  fio: '',
+  bio: '',
   photo: null,
   ssylki: [],
   screenshot: null,
@@ -108,7 +111,6 @@ export const pustayaKarta: Karta = {
   proverka: null,
   tematiki: [],
   gorod: '',
-  rayon: '',
   yazyk: '',
   stavka: '',
   dogovornaya: false,
@@ -121,12 +123,7 @@ export const OBYAZATELNO: { key: string; label: string; done: (k: Karta) => bool
   { key: 'followers', label: 'Подписчики', done: (k) => k.followers.trim() !== '' },
   { key: 'reach', label: 'Охват', done: (k) => k.reach.trim() !== '' },
   { key: 'tematiki', label: 'Тематика', done: (k) => k.tematiki.length > 0 },
-  {
-    // Адрес обязателен целиком: город, а где есть районы — и район.
-    key: 'adres',
-    label: 'Адрес',
-    done: (k) => k.gorod !== '' && (!nuzhenRayon(k.gorod) || k.rayon !== ''),
-  },
+  { key: 'gorod', label: 'Город', done: (k) => k.gorod !== '' },
   { key: 'yazyk', label: 'Язык', done: (k) => k.yazyk !== '' },
 ]
 
@@ -147,6 +144,8 @@ const zayavki: Zayavka[] = [
       ...pustayaKarta,
       id: 'z1',
       nick: '@dastan.tech',
+      fio: '',
+      bio: '',
       ssylki: ['https://instagram.com/dastan.tech', 'https://t.me/dastan_tech'],
       followers: '31700',
       reach: '8900',
@@ -162,7 +161,6 @@ const zayavki: Zayavka[] = [
       },
       tematiki: ['IT и технологии', 'Образование'],
       gorod: 'Астана',
-      rayon: 'Есильский',
       yazyk: 'Русский',
       stavka: '45000',
     },
@@ -174,6 +172,8 @@ const zayavki: Zayavka[] = [
       ...pustayaKarta,
       id: 'z2',
       nick: '@meiram.eats',
+      fio: '',
+      bio: '',
       ssylki: ['https://tiktok.com/@meiram.eats'],
       followers: '92400',
       reach: '15000',
@@ -192,7 +192,6 @@ const zayavki: Zayavka[] = [
       },
       tematiki: ['Еда и рестораны'],
       gorod: 'Шымкент',
-      rayon: 'Аль-Фарабийский',
       yazyk: 'Оба',
       dogovornaya: true,
     },
@@ -204,6 +203,8 @@ const zayavki: Zayavka[] = [
       ...pustayaKarta,
       id: 'z3',
       nick: '@aigerim.style',
+      fio: '',
+      bio: '',
       ssylki: ['https://instagram.com/aigerim.style'],
       followers: '48200',
       reach: '12400',
@@ -219,7 +220,6 @@ const zayavki: Zayavka[] = [
       },
       tematiki: ['Мода', 'Красота'],
       gorod: 'Алматы',
-      rayon: 'Медеуский',
       yazyk: 'Оба',
       stavka: '60000',
     },
@@ -371,9 +371,29 @@ export function korotko(n: string): string {
   return String(d)
 }
 
+/* Состояний карточки четыре, и называются они одинаково везде: у блогера,
+   в админке и в списках. Слово владельца 07.09.2026 — «оптимизируй
+   статусы»; до этого одно и то же состояние в разных местах звалось
+   по-разному, и понять, что происходит, было нельзя. */
 export const STATUS_NAZVANIE: Record<CardStatus, string> = {
-  draft: 'Черновик',
+  draft: 'Не заполнена',
   moderation: 'На проверке',
   published: 'В каталоге',
-  rejected: 'Отклонена',
+  rejected: 'Возвращена',
+}
+
+/** Что это значит человеческим языком — под названием состояния. */
+export const STATUS_POYASNENIE: Record<CardStatus, string> = {
+  draft: 'Блогер ещё не отправил карточку. В каталоге её нет.',
+  moderation: 'Ждёт решения администратора. В каталоге пока нет.',
+  published: 'Видна в каталоге, рекламодатели её находят.',
+  rejected: 'Возвращена блогеру с причиной. В каталоге нет, пока он не поправит.',
+}
+
+/** Цвет плашки состояния — один и тот же во всех списках. */
+export const STATUS_VID: Record<CardStatus, string> = {
+  draft: 'say',
+  moderation: 'neutral',
+  published: 'ok',
+  rejected: 'err',
 }

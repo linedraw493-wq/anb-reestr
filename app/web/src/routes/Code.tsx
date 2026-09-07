@@ -8,8 +8,14 @@ import { Err, Shell } from '../ui/Shell'
 
 const LEN = 6
 
-/** Куда ушёл код — временно это Telegram, а не SMS. */
-const KUDA_KOD = OTP_LIVE ? 'Код отправлен в Telegram' : 'Код отправлен'
+/** Откуда человеку ждать код. Врать тут нельзя: он смотрит не туда и
+    решает, что сайт сломан. Канал сообщает сервер при запросе кода. */
+function kudaKod(kanal: string | undefined): string {
+  if (kanal === 'zvonok') return 'Звоним и продиктуем код'
+  if (kanal === 'sms') return 'Код отправлен SMS'
+  if (kanal === 'telegram') return 'Код отправлен в Telegram'
+  return OTP_LIVE ? 'Код отправлен' : 'Код отправлен'
+}
 
 /** Экран 02 — ввод кода. */
 export default function Code() {
@@ -121,7 +127,7 @@ export default function Code() {
     <Shell>
       <h1>Введите код</h1>
       <p className="sub">
-        {KUDA_KOD} · {flow.phoneMasked}
+        {kudaKod(flow.kanal)} · {flow.phoneMasked}
       </p>
 
       <div className="code" onClick={() => inputRef.current?.focus()}>

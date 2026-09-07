@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { initsialy, korotko, razdelit, ton, type Karta } from '../lib/card'
 import { vzyatOdnogo } from '../lib/katalog'
 import { razobratVse } from '../lib/seti'
-import { Nadpis } from '../ui/Nadpis'
 import { Shapka } from '../ui/Shapka'
 
 /** Страница одного блогера в каталоге. Телефон здесь не показывается никогда. */
@@ -64,7 +63,7 @@ export default function Blogger() {
     )
   }
 
-  const mesto = [karta.gorod, karta.rayon].filter(Boolean).join(', ')
+  const mesto = karta.gorod
   const seti = razobratVse(karta.ssylki)
 
   return (
@@ -76,7 +75,6 @@ export default function Blogger() {
 
       <div className="blg">
         <div className="blg-verh">
-          <Nadpis slovo={karta.nick.replace(/^@/, '').toUpperCase()} />
           {karta.photo ? (
             <img className="ava ava-img ogromnaya" src={karta.photo} alt="" />
           ) : (
@@ -90,6 +88,9 @@ export default function Blogger() {
           )}
           <div>
             <h1>{karta.nick}</h1>
+            {/* Имя — 07.09.2026: рекламодателю проще писать человеку по
+                имени, чем нику. Пусто у тех, кто его не указал. */}
+            {karta.fio && <p className="blg-fio">{karta.fio}</p>}
             <p className="sub">{[...karta.tematiki, mesto].filter(Boolean).join(' · ')}</p>
           </div>
         </div>
@@ -137,28 +138,39 @@ export default function Blogger() {
           </p>
         </div>
 
+        {karta.bio && (
+          <section className="block">
+            <h2>О себе</h2>
+            <p className="blg-bio">{karta.bio}</p>
+          </section>
+        )}
+
         <section className="block">
           <h2>Где смотреть и как написать</h2>
           {seti.length === 0 ? (
             <p className="fine">Ссылки не указаны.</p>
           ) : (
             <ul className="links">
+              {/* Слово владельца 07.09.2026: «сделай ссылки с профиля карточек
+                  кликабельными». Раньше нажималось только слово «Открыть» —
+                  строка выглядела кнопкой, но нажатие по ней ничего не
+                  делало. Теперь ссылка — вся строка целиком. */}
               {seti.map((s) => (
                 <li key={s.url}>
-                  <span className="ic" aria-hidden="true">
-                    {s.short}
-                  </span>
-                  <span className="link-txt">
-                    <span className="link-nm">{s.name}</span>
-                    <span className="link-h">{s.handle}</span>
-                  </span>
                   <a
-                    className="linkbtn"
+                    className="link-row"
                     href={s.url}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                   >
-                    Открыть
+                    <span className="ic" aria-hidden="true">
+                      {s.short}
+                    </span>
+                    <span className="link-txt">
+                      <span className="link-nm">{s.name}</span>
+                      <span className="link-h">{s.handle}</span>
+                    </span>
+                    <span className="link-otkryt">Открыть ↗</span>
                   </a>
                 </li>
               ))}

@@ -1,64 +1,89 @@
-import { parsePhoneNumberFromString } from 'libphonenumber-js'
+import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js'
 
-/* Казахстан. Проверяем, что номер настоящий мобильный, и сами расставляем
-   пробелы, пока человек печатает. */
+/* ---------------------------------------------------------------------------
+   Номер телефона: как его набирают и как проверяют.
 
-/**
- * Из того, что стоит в поле, — только собственные цифры номера, без кода
- * страны. Десять цифр: 701 000 00 00.
- *
- * Почему так, а не «дописать семёрку»:
- *
- * Поле само себя перечитывает. Мы показываем «+7 705», человек нажимает ещё
- * цифру — и нам приходит уже вся строка вместе с нашей же семёркой. Если
- * дописывать её каждый раз, она копится: получалось «+7 77777010000000»
- * (снимок владельца 02.09.2026). Поэтому код страны сначала снимается, а
- * приписывается только при показе — и разбор не зависит от того, сколько раз
- * его прогнали.
- *
- * Казахстанские номера сами начинаются с семёрки (705, 747, 771…), поэтому
- * «первая цифра — это код страны» верно не всегда; смотрим на вид записи.
- */
-function svoiCifry(syroe: string): string {
-  const stroka = syroe.trim()
-  let d = stroka.replace(/\D/g, '')
+   Слово владельца 07.09.2026: «сделай корректную валидацию при вводе номера
+   телефона (чтобы нажатие 7-ки было нормой), возможность делать номера
+   других стран создай».
 
-  if (stroka.startsWith('+')) {
-    d = d.slice(1) // «+7 705…» — семёрка это код страны
-  } else if (d.startsWith('8')) {
-    d = d.slice(1) // «8 705…» — старая привычка
-  } else if (d.length === 11 && d.startsWith('7')) {
-    d = d.slice(1) // вставили «77010000000» целиком
-  }
+   Отсюда два правила:
 
-  return d.slice(0, 10) // больше десяти цифр в номере не бывает
+   1. **Начал не с плюса — считаем казахстанским.** Человек набирает «747…»,
+      «8 747…» или «+7 747…» — во всех трёх случаях выйдет один номер. Первая
+      семёрка больше не съедается: раньше её принимали за код страны, и
+      номера вида 747/771 начинались криво.
+   2. **Начал с плюса — набирает любую страну.** +44, +971, +996 — раскладку
+      и проверку делает libphonenumber, она знает все планы нумерации.
+
+   Раскладываем библиотекой, а не руками: своя раскладка держалась только на
+   Казахстане и на других странах врала.
+--------------------------------------------------------------------------- */
+
+/** Похоже ли, что человек набирает местный номер (без кода страны). */
+function mestnyy(syroe: string): boolean {
+  return !syroe.trim().startsWith('+')
 }
 
 /**
- * Показать номер так, как его пишут здесь: +7 701 000 00 00.
+ * Местный набор → международный вид. «747…» и «8 747…» → «+7 747…».
  *
- * Раскладываем сами, а не готовой библиотекой: она для Казахстана делит
- * хвост иначе (705 281 9342), и поле расходилось с подсказкой в нём же и с
- * тем, как номер показан в остальных местах.
+ * Тут же лечится старая беда: поле показывает «+7 705», человек жмёт ещё
+ * цифру, и нам приходит вся строка вместе с нашим же плюсом. Пока строка
+ * начинается с плюса, эта ветка не работает вовсе — и семёрка не копится.
+ */
+function kazahstanskiy(syroe: string): string {
+  let d = syroe.replace(/\D/g, '')
+  if (d.startsWith('8')) d = '7' + d.slice(1)
+  else if (!d.startsWith('7')) d = '7' + d
+  return '+' + d.slice(0, 11)
+}
+
+/** Показать номер так, как его пишут: +7 747 123 45 67, +44 20 7183 8750.
+ *
+ * Казахстанский раскладываем сами — по привычке здешних мест, 3-3-2-2.
+ * Библиотека делит хвост иначе (747 123 4567), и поле расходилось бы с тем,
+ * как номер показан в остальных местах сайта. Все прочие страны — ей: своих
+ * правил на весь мир у нас нет.
  */
 export function formatAsTyped(syroe: string): string {
-  const d = svoiCifry(syroe)
-  if (d === '') return ''
-  const chasti = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 8), d.slice(8, 10)]
-  return ('+7 ' + chasti.filter(Boolean).join(' ')).trimEnd()
+  if (syroe.trim() === '') return ''
+  const mezhdunarodnyy = mestnyy(syroe) ? kazahstanskiy(syroe) : syroe.trim()
+  const d = mezhdunarodnyy.replace(/\D/g, '')
+  if (mezhdunarodnyy.startsWith('+7') && d.length <= 11) {
+    const svoi = d.slice(1)
+    const chasti = [svoi.slice(0, 3), svoi.slice(3, 6), svoi.slice(6, 8), svoi.slice(8, 10)]
+    return ('+7 ' + chasti.filter(Boolean).join(' ')).trimEnd()
+  }
+  return new AsYouType().input(mezhdunarodnyy)
 }
 
-/** Даёт номер в виде +77051234567, либо null, если номер не настоящий. */
+/** Номер в виде +77051234567, либо null, если такого номера не бывает. */
 export function toE164(syroe: string): string | null {
-  const svoi = svoiCifry(syroe)
-  if (svoi.length !== 10) return null
-  const razobran = parsePhoneNumberFromString('+7' + svoi, 'KZ')
-  if (!razobran || !razobran.isValid() || razobran.country !== 'KZ') return null
+  if (syroe.trim() === '') return null
+  const mezhdunarodnyy = mestnyy(syroe) ? kazahstanskiy(syroe) : syroe.trim()
+  const razobran = parsePhoneNumberFromString(mezhdunarodnyy)
+  // isValid() — не просто «столько-то цифр», а есть ли такой план нумерации
+  // в этой стране. Опечатку в коде оператора он ловит.
+  if (!razobran || !razobran.isValid()) return null
   return razobran.number
 }
 
+/** Из какой страны номер: «KZ», «RU», «AE». Пусто — не разобрали. */
+export function strana(syroe: string): string {
+  const nomer = toE164(syroe)
+  if (!nomer) return ''
+  return parsePhoneNumberFromString(nomer)?.country ?? ''
+}
+
+/** Спрятать середину: +7 778 ••• •• 92. Годится для номера любой страны. */
 export function mask(e164: string): string {
   const d = e164.replace(/\D/g, '')
-  if (d.length < 11) return e164
-  return `+${d[0]} ${d.slice(1, 4)} ••• •• ${d.slice(9, 11)}`
+  if (d.length < 7) return e164
+  // Казахстан и Россия — привычный вид, к нему все притерпелись.
+  if (d.length === 11 && d.startsWith('7')) {
+    return `+${d[0]} ${d.slice(1, 4)} ••• •• ${d.slice(9, 11)}`
+  }
+  // Любая другая страна: видно начало и две последние цифры.
+  return `+${d.slice(0, 4)} ••• ${d.slice(-2)}`
 }

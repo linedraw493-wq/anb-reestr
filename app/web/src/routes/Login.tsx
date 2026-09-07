@@ -52,7 +52,7 @@ export default function Login() {
     }
 
     zapomnitNomer(phone)
-    saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked, kuda })
+    saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked, kuda, kanal: res.kanal })
     navigate('/kod')
   }
 

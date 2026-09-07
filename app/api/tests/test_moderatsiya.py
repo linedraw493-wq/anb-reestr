@@ -87,19 +87,17 @@ async def test_zayavki_idut_stranicami_i_so_schetami(klient, baza_conn):
     klient.cookies.clear()
 
 
-# ------------------------------------------ модератор и его границы (07.09.2026)
+# ------------------------------------------ границы админки (07.09.2026)
+#
+# Роль модератора прожила один день и убрана словом владельца: «пускай
+# чисто будет админ, с функционалом и модера, и админ с его фишками».
+# Ролей две — блогер и админ, и проверки следят, чтобы блогера в админку
+# не пускали ни в одну дверь.
 
 
-async def _nastoyashchiy_moderator(klient, conn, telefon: str):
-    """Именно 'moderator', а не админ: у него прав меньше, это и проверяем."""
-    kto = await zavesti_cheloveka(conn, telefon, rol="moderator", imya="Модератор")
-    klient.cookies.set("sessiya", await otkryt_sessiyu(conn, kto))
-    return kto
-
-
-async def test_moderator_proveryaet_kartochki(klient, baza_conn):
-    """Его работа: увидеть очередь, одобрить, отказать. Слово владельца 07.09."""
-    await _nastoyashchiy_moderator(klient, baza_conn, "+77020000010")
+async def test_admin_proveryaet_kartochki(klient, baza_conn):
+    """Работа админа: увидеть очередь, одобрить, отказать."""
+    await _moderator(klient, baza_conn, "+77020000010")
     kto = await zavesti_cheloveka(baza_conn, "+77020000011")
     kid = await zavesti_kartochku(baza_conn, kto, "@moder_odobrit", 3000, status="moderation")
 
@@ -119,9 +117,10 @@ async def test_moderator_proveryaet_kartochki(klient, baza_conn):
     klient.cookies.clear()
 
 
-async def test_moderatoru_zakryto_vse_ostalnoe(klient, baza_conn):
-    """Приглашения, коды, списки, сводка, правка, удаление — админские."""
-    await _nastoyashchiy_moderator(klient, baza_conn, "+77020000013")
+async def test_blogeru_zakryta_vsya_adminka(klient, baza_conn):
+    """Ни одной двери админки блогеру: ни смотреть, ни править."""
+    kto = await zavesti_cheloveka(baza_conn, "+77020000013")
+    klient.cookies.set("sessiya", await otkryt_sessiyu(baza_conn, kto))
 
     for adres in ("/api/moder/priglasheniya", "/api/moder/svodka", "/api/moder/spiski",
                   "/api/moder/lyudi"):
@@ -135,22 +134,22 @@ async def test_moderatoru_zakryto_vse_ostalnoe(klient, baza_conn):
         ("/api/moder/skryt", {"id": 1, "skryt": True}),
         ("/api/moder/update", {"id": 1}),
         ("/api/moder/remove", {"id": 1}),
-        ("/api/moder/rol", {"chelovekId": 1, "rol": "moderator"}),
+        ("/api/moder/rol", {"chelovekId": 1, "rol": "admin"}),
     ):
         assert (await klient.post(adres, json=telo)).status_code == 403, adres
     klient.cookies.clear()
 
 
-async def test_admin_naznachaet_i_snimaet_moderatora(klient, baza_conn):
+async def test_admin_naznachaet_i_snimaet_admina(klient, baza_conn):
     admin_id = await _moderator(klient, baza_conn, "+77020000015")
-    kto = await zavesti_cheloveka(baza_conn, "+77020000016", imya="Будущий модератор")
+    kto = await zavesti_cheloveka(baza_conn, "+77020000016", imya="Будущий админ")
     await zavesti_kartochku(baza_conn, kto, "@budushchiy", 1000)
 
-    dal = await klient.post("/api/moder/rol", json={"chelovekId": kto, "rol": "moderator"})
+    dal = await klient.post("/api/moder/rol", json={"chelovekId": kto, "rol": "admin"})
     assert dal.json()["ok"] is True
-    assert await baza_conn.fetchval("select rol from lyudi where id = $1", kto) == "moderator"
+    assert await baza_conn.fetchval("select rol from lyudi where id = $1", kto) == "admin"
 
-    # он виден в списке модераторов, и его же находит поиск по нику
+    # он виден в списке админов, и его же находит поиск по нику
     spisok = (await klient.get("/api/moder/lyudi")).json()
     assert kto in [c["chelovekId"] for c in spisok["moderatory"]]
 
@@ -165,7 +164,7 @@ async def test_admin_naznachaet_i_snimaet_moderatora(klient, baza_conn):
             "select chto from zhurnal_moderatsii where kto_id = $1 order by id", admin_id
         )
     ]
-    assert otmetki == ["naznachil-moderatora", "snyal-moderatora"]
+    assert otmetki == ["naznachil-admina", "snyal-admina"]
     klient.cookies.clear()
 
 

@@ -53,7 +53,7 @@ export type Ya =
   | { vnutri: false }
   | {
       vnutri: true
-      rol: 'blogger' | 'moderator' | 'admin'
+      rol: Rol
       imya: string | null
       telefon: string
       /** заполнена ли карточка — шапке решать, как её называть */
@@ -148,7 +148,9 @@ export const moderApi: ModerApi = USE_FAKE ? fakeModerApi : liveModerApi
 
 /* ------------------------------------------------- назначение модератора */
 
-export type Rol = 'blogger' | 'moderator' | 'admin'
+/* Ролей две: блогер и админ. Модератора убрали 07.09.2026 словом
+   владельца — «пускай чисто будет админ». */
+export type Rol = 'blogger' | 'admin'
 
 export type Chelovek = {
   chelovekId: number

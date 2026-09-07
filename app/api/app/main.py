@@ -59,7 +59,10 @@ async def zhizn(_: FastAPI):
     elif nastroyki.MASTER_KOD and nastroyki.MASTER_KOD_TELEFONY.strip():
         skolko = len([n for n in nastroyki.MASTER_KOD_TELEFONY.split(",") if n.strip()])
         log.info("постоянный код входа действует для %d номер(ов)", skolko)
-    if vhod.kanal() == "sms":
+    kanal_kodov = vhod.kanal()
+    if kanal_kodov == "zvonok":
+        log.info("коды диктует робот звонком через AutoCall — доходит до всех операторов")
+    elif kanal_kodov == "sms":
         log.info(
             "коды идут настоящей SMS через Mobizon, подпись %s",
             nastroyki.MOBIZON_PODPIS or "общая (без Beeline)",
@@ -291,6 +294,10 @@ def _sobrat_kartu(
     return {
         "id": str(kartochka["id"]),
         "nick": kartochka["nik"] or "",
+        # Имя и рассказ о себе — 07.09.2026. Пусто у всех, кто заполнял
+        # карточку раньше: задним числом не выдумываем.
+        "fio": kartochka["fio"] or "",
+        "bio": kartochka["bio"] or "",
         "photo": f"/api/kartinki/{kartochka['foto_id']}" if kartochka["foto_id"] else None,
         "ssylki": ssylki,
         "screenshot": f"/api/kartinki/{skrin['kartinka_id']}" if skrin else None,
@@ -307,7 +314,6 @@ def _sobrat_kartu(
         ),
         "tematiki": tematiki,
         "gorod": kartochka["gorod"] or "",
-        "rayon": kartochka["rayon"] or "",
         "yazyk": kartochka["yazyk"] or "",
         "stavka": str(kartochka["stavka"] or ""),
         "dogovornaya": kartochka["dogovornaya"],
@@ -315,10 +321,9 @@ def _sobrat_kartu(
 
 
 KARTOCHKA_SELECT = """
-    select k.*, g.nazvanie as gorod, r.nazvanie as rayon
+    select k.*, g.nazvanie as gorod
     from kartochki k
     left join goroda g on g.id = k.gorod_id
-    left join rayony r on r.id = k.rayon_id
 """
 
 
@@ -338,22 +343,21 @@ async def spravochniki():
             "select nazvanie from tematiki where vidna order by poryadok, nazvanie")]
         goroda: dict[str, list[str]] = {}
         oblasti: dict[str, list[str]] = {}
+        # Районы убраны 07.09.2026 словом владельца («убери район где
+        # адрес»). Список городов остался плоским, а `goroda` — словарём с
+        # пустыми списками: так экраны, читающие ключи, не переделываются.
         for r in await conn.fetch(
             """
-            select g.nazvanie as gorod, g.oblast, r.nazvanie as rayon
+            select g.nazvanie as gorod, g.oblast
             from goroda g
-            left join rayony r on r.gorod_id = g.id and r.vidno
             where g.vidno
             -- три главных города вперёд, дальше области по алфавиту
             order by (g.oblast is distinct from 'город республиканского значения'),
-                     g.oblast nulls last, g.nazvanie, r.nazvanie
+                     g.oblast nulls last, g.nazvanie
             """
         ):
-            if r["gorod"] not in goroda:
-                goroda[r["gorod"]] = []
-                oblasti.setdefault(r["oblast"] or "Прочее", []).append(r["gorod"])
-            if r["rayon"]:
-                goroda[r["gorod"]].append(r["rayon"])
+            goroda[r["gorod"]] = []
+            oblasti.setdefault(r["oblast"] or "Прочее", []).append(r["gorod"])
     return {
         "tematiki": temy,
         "goroda": goroda,
@@ -451,6 +455,8 @@ async def vhod_start(request: Request):
         "ok": True,
         "resendAfter": nastroyki.POVTOR_CHEREZ_SEK,
         "phoneMasked": vhod.maska(telefon),
+        # Экран кода должен сказать правду: ждать SMS, звонка или чата.
+        "kanal": vhod.kanal(),
     }
 
 
@@ -517,7 +523,7 @@ async def vhod_check(request: Request):
         rol = await conn.fetchval("select rol from lyudi where id = $1", chelovek_id)
         znachenie = await vhod.otkryt_sessiyu(conn, chelovek_id)
 
-    kuda = "katalog" if (zapolnena or rol in ("moderator", "admin")) else "card"
+    kuda = "katalog" if (zapolnena or rol == "admin") else "card"
     otvet = JSONResponse({"ok": True, "next": kuda})
     vhod.postavit_cookie(otvet, znachenie)
     return otvet
@@ -640,7 +646,7 @@ async def otdat_kartinku(request: Request, kartinka_id: int):
             chelovek = await _tekushchiy(request)
             if chelovek is None:
                 return _net_prav()
-            if chelovek["rol"] not in ("moderator", "admin"):
+            if chelovek["rol"] != "admin":
                 svoya = await conn.fetchval(
                     "select 1 from kartochki k"
                     " left join skriny s on s.kartochka_id = k.id"
@@ -807,31 +813,24 @@ async def sohranit_kartochku(request: Request):
             gorod_id = await conn.fetchval(
                 "select id from goroda where nazvanie = $1", telo.get("gorod") or ""
             )
-            rayon_id = (
-                await conn.fetchval(
-                    "select id from rayony where gorod_id = $1 and nazvanie = $2",
-                    gorod_id,
-                    telo.get("rayon") or "",
-                )
-                if gorod_id
-                else None
-            )
 
             # --- то, что правится сразу
             await conn.execute(
                 """
                 update kartochki set
-                  nik = $2, gorod_id = $3, rayon_id = $4, yazyk = $5,
-                  stavka = $6, dogovornaya = $7, obnovlena_v = now()
+                  nik = $2, gorod_id = $3, rayon_id = null, yazyk = $4,
+                  stavka = $5, dogovornaya = $6, fio = $7, bio = $8,
+                  obnovlena_v = now()
                 where id = $1
                 """,
                 kid,
                 (telo.get("nick") or "").strip(),
                 gorod_id,
-                rayon_id,
                 telo.get("yazyk") or None,
                 _chislo(telo.get("stavka")),
                 bool(telo.get("dogovornaya")),
+                (telo.get("fio") or "").strip()[:120] or None,
+                (telo.get("bio") or "").strip()[:400] or None,
             )
 
             await conn.execute("delete from ssylki where kartochka_id = $1", kid)
@@ -943,23 +942,15 @@ async def sohranit_kartochku(request: Request):
 # ================================================================== модератор
 
 
-async def _modertor(request: Request) -> asyncpg.Record | None:
-    """Кто вправе смотреть очередь и решать по карточке: модератор и админ.
-
-    Слово владельца 07.09.2026: «модератор только проверяет карточки и
-    апрувит их, либо блокирует отказом на регистрацию». Поэтому этой
-    дверью открыты ровно четыре места — очередь, одобрить, отклонить и
-    готовые причины отказа. Всё остальное в админке (приглашения, коды,
-    правка карточек, списки, сводка, удаление) закрыто на `_admin`.
-    """
-    chelovek = await _tekushchiy(request)
-    if chelovek is None or chelovek["rol"] not in ("moderator", "admin"):
-        return None
-    return chelovek
-
-
 async def _admin(request: Request) -> asyncpg.Record | None:
-    """Только админ. Модератора сюда не пускаем — у него одна работа."""
+    """Единственная дверь в админку.
+
+    Ролей в реестре две: блогер и админ. Модератора убрали 07.09.2026
+    словом владельца — «убери модератора, пускай чисто будет админ, с
+    функционалом и модера который планировали, и админ с его фишками».
+    Отдельная узкая роль сначала появилась, а через день оказалась лишней:
+    людей в Ассоциации мало, и делить их на два сорта не за чем.
+    """
     chelovek = await _tekushchiy(request)
     if chelovek is None or chelovek["rol"] != "admin":
         return None
@@ -980,7 +971,7 @@ async def zayavki(
     каждую ходил в базу отдельно — почти тысяча запросов на один заход.
     Теперь страница нужной вкладки и одна пачка запросов на неё.
     """
-    if await _modertor(request) is None:
+    if await _admin(request) is None:
         return _net_prav()
 
     na_stranice = max(1, min(na_stranice, 200))
@@ -1057,7 +1048,7 @@ def _kogda(kogda) -> str:
 
 @app.post("/api/moder/approve")
 async def odobrit(request: Request):
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     kid = _nomer((await request.json()).get("id"))
@@ -1104,7 +1095,7 @@ async def odobrit(request: Request):
 
 @app.post("/api/moder/reject")
 async def otklonit(request: Request):
-    kto = await _modertor(request)
+    kto = await _admin(request)
     if kto is None:
         return _net_prav()
     telo = await request.json()
@@ -1148,7 +1139,7 @@ async def prichiny_otkaza(request: Request):
     формулировок одного и того же. Своя причина текстом остаётся — список
     только подставляет текст в поле.
     """
-    if await _modertor(request) is None:
+    if await _admin(request) is None:
         return _net_prav()
     async with baza.pul().acquire() as conn:
         stroki = await conn.fetch(
@@ -1200,15 +1191,6 @@ async def popravit(request: Request):
             gorod_id = await conn.fetchval(
                 "select id from goroda where nazvanie = $1", telo.get("gorod") or ""
             )
-            rayon_id = (
-                await conn.fetchval(
-                    "select id from rayony where gorod_id=$1 and nazvanie=$2",
-                    gorod_id,
-                    telo.get("rayon") or "",
-                )
-                if gorod_id
-                else None
-            )
             # Пометка достоверности — спека, день 5: модератор сверил цифры
             # со скрином и ставит «со скрина» либо возвращает на «со слов».
             istochnik = telo.get("istochnik")
@@ -1218,8 +1200,9 @@ async def popravit(request: Request):
             await conn.execute(
                 """
                 update kartochki set nik=$2, podpischiki=$3, ohvat=$4, gorod_id=$5,
-                  rayon_id=$6, yazyk=$7, stavka=$8, dogovornaya=$9,
-                  istochnik=coalesce($10, istochnik), obnovlena_v=now(),
+                  rayon_id=null, yazyk=$6, stavka=$7, dogovornaya=$8,
+                  istochnik=coalesce($9, istochnik), obnovlena_v=now(),
+                  fio=$10, bio=$11,
                   -- дату двигаем, только если цифры и правда поменялись:
                   -- правка города не делает подписчиков свежее
                   cifry_ot = case
@@ -1232,11 +1215,12 @@ async def popravit(request: Request):
                 _chislo(telo.get("followers")),
                 _chislo(telo.get("reach")),
                 gorod_id,
-                rayon_id,
                 telo.get("yazyk") or None,
                 _chislo(telo.get("stavka")),
                 bool(telo.get("dogovornaya")),
                 istochnik,
+                (telo.get("fio") or "").strip()[:120] or None,
+                (telo.get("bio") or "").strip()[:400] or None,
             )
             await conn.execute("delete from kartochka_tematiki where kartochka_id=$1", kid)
             for nazvanie in (telo.get("tematiki") or [])[: nastroyki.MAX_TEMATIK]:
@@ -1616,31 +1600,52 @@ async def spiski(request: Request):
             " (select count(*) from kartochki k where k.gorod_id = g.id) as skolko"
             " from goroda g order by g.nazvanie"
         )
-        rayony = await conn.fetch(
-            "select r.id, r.nazvanie, r.vidno, r.gorod_id, g.nazvanie as gorod,"
-            " (select count(*) from kartochki k where k.rayon_id = r.id) as skolko"
-            " from rayony r join goroda g on g.id = r.gorod_id order by g.nazvanie, r.nazvanie"
-        )
     return {
         "tematiki": [dict(r) for r in tematiki],
         "goroda": [dict(r) for r in goroda],
-        "rayony": [dict(r) for r in rayony],
     }
+
+
+# Границы названия. Те же цифры стоят на экране; здесь они настоящие —
+# экран можно обойти, сервер нет. Слово владельца 07.09.2026: «сделай
+# валидацию на количество символов в категориях (городах)».
+MIN_NAZVANIE = 2
+MAX_NAZVANIE = 40
+
+
+def _nazvanie_spiska(syroe: Any) -> str | None:
+    """Годное название списка или None.
+
+    Не годится: пусто, короче двух знаков, длиннее сорока, без единой буквы
+    (одни цифры и точки — это не тематика). Двойные пробелы внутри
+    схлопываем: «Еда  и   рестораны» и «Еда и рестораны» должны быть одной
+    строкой, а не двумя похожими.
+    """
+    nazvanie = " ".join(str(syroe or "").split())
+    if not (MIN_NAZVANIE <= len(nazvanie) <= MAX_NAZVANIE):
+        return None
+    if not any(ch.isalpha() for ch in nazvanie):
+        return None
+    return nazvanie
 
 
 _TABLICY = {
     "tematika": ("tematiki", "vidna"),
     "gorod": ("goroda", "vidno"),
-    "rayon": ("rayony", "vidno"),
 }
 
 
 @app.post("/api/moder/spisok")
 async def spisok_pravka(request: Request):
-    """Одна точка на четыре дела: добавить, переименовать, скрыть, слить.
+    """Одна точка на три дела: добавить, переименовать, скрыть.
 
     Удаления нет намеренно: удалишь тематику — поедут все карточки, где она
     стояла. Вместо этого «скрыть»: из выбора пропадает, у старых остаётся.
+
+    Слияние убрано 07.09.2026 словом владельца («убери слить в городе»):
+    оно было нужно, чтобы прибирать наплодившиеся районы, а районов больше
+    нет. Длина названия проверяется здесь же: экран обойти можно, сервер —
+    нет.
     """
     kto = await _admin(request)
     if kto is None:
@@ -1655,26 +1660,31 @@ async def spisok_pravka(request: Request):
     async with baza.pul().acquire() as conn:
         async with conn.transaction():
             if chto == "dobavit":
-                nazvanie = (telo.get("nazvanie") or "").strip()
-                if not nazvanie:
-                    return {"ok": False, "reason": "empty"}
-                if tip == "rayon":
-                    await conn.execute(
-                        "insert into rayony (gorod_id, nazvanie) values ($1,$2)"
-                        " on conflict do nothing",
-                        int(telo["gorod_id"]),
-                        nazvanie,
-                    )
-                else:
-                    await conn.execute(
-                        f"insert into {tablica} (nazvanie) values ($1) on conflict do nothing",
-                        nazvanie,
-                    )
+                nazvanie = _nazvanie_spiska(telo.get("nazvanie"))
+                if nazvanie is None:
+                    return {"ok": False, "reason": "bad-name"}
+                # Уникальность в базе различает большие и малые буквы, а для
+                # человека «Алматы» и «алматы» — один город. Проверяем сами.
+                zanyato = await conn.fetchval(
+                    f"select nazvanie from {tablica} where lower(nazvanie) = lower($1)",
+                    nazvanie,
+                )
+                if zanyato:
+                    return {"ok": False, "reason": "zanyato", "est": zanyato}
+                await conn.execute(f"insert into {tablica} (nazvanie) values ($1)", nazvanie)
 
             elif chto == "pereimenovat":
-                nazvanie = (telo.get("nazvanie") or "").strip()
-                if not nazvanie:
-                    return {"ok": False, "reason": "empty"}
+                nazvanie = _nazvanie_spiska(telo.get("nazvanie"))
+                if nazvanie is None:
+                    return {"ok": False, "reason": "bad-name"}
+                zanyato = await conn.fetchval(
+                    f"select nazvanie from {tablica}"
+                    " where lower(nazvanie) = lower($1) and id <> $2",
+                    nazvanie,
+                    int(telo["id"]),
+                )
+                if zanyato:
+                    return {"ok": False, "reason": "zanyato", "est": zanyato}
                 # переименование безопасно: номер тот же, связи целы
                 await conn.execute(
                     f"update {tablica} set nazvanie = $2 where id = $1",
@@ -1689,42 +1699,6 @@ async def spisok_pravka(request: Request):
                     bool(telo.get("vidno", False)),
                 )
 
-            elif chto == "slit":
-                # Перенести всех из одного в другой и убрать источник из выбора.
-                iz_id, v_id = int(telo["iz_id"]), int(telo["v_id"])
-                if iz_id == v_id:
-                    return {"ok": False, "reason": "same"}
-
-                if tip == "tematika":
-                    # у карточки может уже стоять цель — тогда просто снимаем источник
-                    await conn.execute(
-                        "delete from kartochka_tematiki a where a.tematika_id = $1"
-                        " and exists (select 1 from kartochka_tematiki b"
-                        "   where b.kartochka_id = a.kartochka_id and b.tematika_id = $2)",
-                        iz_id,
-                        v_id,
-                    )
-                    await conn.execute(
-                        "update kartochka_tematiki set tematika_id = $2 where tematika_id = $1",
-                        iz_id,
-                        v_id,
-                    )
-                elif tip == "gorod":
-                    # район принадлежит городу — переносим и его, иначе повиснет
-                    await conn.execute(
-                        "update rayony set gorod_id = $2 where gorod_id = $1", iz_id, v_id
-                    )
-                    await conn.execute(
-                        "update kartochki set gorod_id = $2 where gorod_id = $1", iz_id, v_id
-                    )
-                else:
-                    await conn.execute(
-                        "update kartochki set rayon_id = $2 where rayon_id = $1", iz_id, v_id
-                    )
-
-                await conn.execute(
-                    f"update {tablica} set {pole_vidno} = false where id = $1", iz_id
-                )
             else:
                 return {"ok": False, "reason": "bad-action"}
 
@@ -1742,14 +1716,9 @@ async def spisok_pravka(request: Request):
 # =============================================== кто есть кто: назначить модератора
 
 
-# Что писать в журнал: из какой роли в какую. Админ важнее модератора,
-# поэтому «модератор → админ» это назначение админом, а не снятие проверки.
+# Что писать в журнал: из какой роли в какую.
 _OTMETKA = {
-    ("blogger", "moderator"): "naznachil-moderatora",
-    ("moderator", "blogger"): "snyal-moderatora",
     ("blogger", "admin"): "naznachil-admina",
-    ("moderator", "admin"): "naznachil-admina",
-    ("admin", "moderator"): "snyal-admina",
     ("admin", "blogger"): "snyal-admina",
 }
 
@@ -1772,21 +1741,20 @@ def _admin_iz_nastroek(telefon: str | None) -> bool:
 
 @app.get("/api/moder/lyudi")
 async def lyudi_spisok(request: Request, poisk: str | None = None):
-    """Кому можно дать проверку карточек. Только админу.
+    """Кто в админке и кого туда можно позвать. Только админу.
 
-    Слово владельца 07.09.2026: «добавь в админку возможность назначать
-    модератора». Наверху экрана — те, кто уже модератор; ниже — поиск по
-    нику и телефону среди остальных, чтобы не листать три сотни человек.
+    Наверху экрана — те, кто уже админ; ниже — поиск по нику, имени и
+    телефону среди остальных, чтобы не листать три сотни человек.
     """
     if await _admin(request) is None:
         return _net_prav()
 
     async with baza.pul().acquire() as conn:
-        moderatory = await conn.fetch(
+        adminy = await conn.fetch(
             "select l.id, l.telefon, l.imya, l.rol, k.nik"
             " from lyudi l left join kartochki k on k.chelovek_id = l.id"
-            " where l.rol in ('moderator', 'admin') and l.udalen_v is null"
-            " order by l.rol, l.id"
+            " where l.rol = 'admin' and l.udalen_v is null"
+            " order by l.id"
         )
         nayden = []
         if poisk and poisk.strip():
@@ -1814,16 +1782,19 @@ async def lyudi_spisok(request: Request, poisk: str | None = None):
             "etoYa": ya is not None and r["id"] == ya["id"],
         }
 
-    return {"moderatory": [vid(r) for r in moderatory], "nayden": [vid(r) for r in nayden]}
+    # Ключ `moderatory` остался прежним, чтобы не ломать экран одним махом:
+    # в нём теперь админы. Переименуем, когда будет повод трогать оба конца.
+    return {"moderatory": [vid(r) for r in adminy], "nayden": [vid(r) for r in nayden]}
 
 
 @app.post("/api/moder/rol")
 async def naznachit_rol(request: Request):
-    """Дать человеку права или забрать их. Три роли, все три через эту дверь.
+    """Сделать человека админом или снять админа.
 
     Слово владельца 07.09.2026: «сделай возможность назначать админа в
     панели админки». До этого админ заводился только настройками сервера,
-    и клиент не мог добавить себе второго человека без нас.
+    и клиент не мог добавить себе второго человека без нас. Тем же днём
+    роль модератора убрана: ролей две — блогер и админ.
 
     Три запрета, и все три — чтобы админка не осталась без хозяина:
     себе роль не меняют · последнего админа не снимают · админа, заведённого
@@ -1837,7 +1808,7 @@ async def naznachit_rol(request: Request):
     rol = str(telo.get("rol", ""))
     if chelovek_id is None:
         return {"ok": False, "reason": "bad-id"}
-    if rol not in ("admin", "moderator", "blogger"):
+    if rol not in ("admin", "blogger"):
         return {"ok": False, "reason": "bad-role"}
     if chelovek_id == kto["id"]:
         return {"ok": False, "reason": "sam-sebe"}
@@ -1874,7 +1845,6 @@ async def naznachit_rol(request: Request):
 async def katalog(
     tematika: str | None = None,
     gorod: str | None = None,
-    rayon: str | None = None,
     yazyk: str | None = None,
     ot: int | None = None,
     do: int | None = None,
@@ -1895,8 +1865,6 @@ async def katalog(
 
     if gorod:
         dobavit("g.nazvanie = ?", gorod)
-    if rayon:
-        dobavit("r.nazvanie = ?", rayon)
     if yazyk:
         dobavit("k.yazyk = ?", yazyk)
     if ot:
@@ -1935,7 +1903,6 @@ async def katalog(
         vsego = await conn.fetchval(
             "select count(*) from kartochki k"
             " left join goroda g on g.id = k.gorod_id"
-            " left join rayony r on r.id = k.rayon_id"
             " join lyudi l on l.id = k.chelovek_id where " + gde,
             *znacheniya,
         )
@@ -1951,7 +1918,6 @@ async def katalog(
             "select g.nazvanie as gorod, g.shirota, g.dolgota, count(*) as skolko"
             " from kartochki k"
             " left join goroda g on g.id = k.gorod_id"
-            " left join rayony r on r.id = k.rayon_id"
             " join lyudi l on l.id = k.chelovek_id"
             " where " + gde + " and g.shirota is not null"
             " group by g.nazvanie, g.shirota, g.dolgota order by 4 desc",

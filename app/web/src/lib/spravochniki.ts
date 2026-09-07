@@ -78,11 +78,6 @@ export function spravochniki(): Spravochniki {
   return seychas
 }
 
-/** Есть ли у города районы — от этого зависит, обязателен ли район. */
-export function nuzhenRayon(gorod: string): boolean {
-  return (seychas.goroda[gorod] ?? []).length > 0
-}
-
 let zagruzka: Promise<void> | null = null
 
 function zagruzit(): Promise<void> {
