@@ -2487,6 +2487,13 @@ select.input[disabled] {
   gap: 6px;
   margin-bottom: 16px;
 }
+/* Кнопка «ссылка для нового блогера» — по размеру надписи, а не во всю
+   ширину: колонка растягивает детей, и она превращалась в лиловую полосу
+   поперёк экрана. */
+.novaya-blok > .btn.small {
+  align-self: flex-start;
+}
+
 .novaya-forma {
   display: flex;
   flex-wrap: wrap;
