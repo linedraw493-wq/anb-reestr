@@ -17,11 +17,11 @@ import { ktoYa, vyyti, type Ya } from '../lib/api'
  * — проверка карточек, остальное админское.
  */
 const ADMINKA: { put: string; imya: string; tolkoAdmin?: boolean }[] = [
-  { put: '/moderator', imya: 'Проверка карточек' },
-  { put: '/moderator/priglasheniya', imya: 'Приглашения', tolkoAdmin: true },
-  { put: '/moderator/lyudi', imya: 'Права', tolkoAdmin: true },
-  { put: '/moderator/spiski', imya: 'Списки', tolkoAdmin: true },
-  { put: '/moderator/svodka', imya: 'Сводка', tolkoAdmin: true },
+  { put: '/admin', imya: 'Проверка карточек' },
+  { put: '/admin/priglasheniya', imya: 'Приглашения', tolkoAdmin: true },
+  { put: '/admin/prava', imya: 'Права', tolkoAdmin: true },
+  { put: '/admin/spiski', imya: 'Списки', tolkoAdmin: true },
+  { put: '/admin/svodka', imya: 'Сводка', tolkoAdmin: true },
 ]
 
 export function Shapka() {

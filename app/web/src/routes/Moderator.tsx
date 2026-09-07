@@ -163,7 +163,10 @@ export default function Moderator() {
               : 'Не получилось забрать заявки. Обновите страницу — если не поможет, сервер лежит.'}
           </p>
         </header>
-        <button className="btn" onClick={() => navigate('/vhod')}>
+        <button
+          className="btn"
+          onClick={() => navigate(beda === 'net-prav' ? '/vhod?kuda=/admin' : '/vhod')}
+        >
           {beda === 'net-prav' ? 'Войти' : 'На вход'}
         </button>
       </div>

@@ -11,6 +11,7 @@ import Moderatory from './routes/Moderatory'
 import Priglasheniya from './routes/Priglasheniya'
 import Svodka from './routes/Svodka'
 import SpiskiEkran from './routes/Spiski'
+import { Adminka } from './ui/Adminka'
 
 export default function App() {
   return (
@@ -31,12 +32,61 @@ export default function App() {
 
       <Route path="/kartochka" element={<Card />} />
 
-      {/* инструмент модератора — на сервере закрыт ролью */}
-      <Route path="/moderator" element={<Moderator />} />
-      <Route path="/moderator/spiski" element={<SpiskiEkran />} />
-      <Route path="/moderator/priglasheniya" element={<Priglasheniya />} />
-      <Route path="/moderator/svodka" element={<Svodka />} />
-      <Route path="/moderator/lyudi" element={<Moderatory />} />
+      {/* Админка — свой адрес, слово владельца 07.09.2026: «сделай отдельную
+          ссылку на админку». Один вход в неё: `/admin`. Гостя `Adminka`
+          отправляет за кодом и возвращает обратно, блогеру говорит «сюда
+          нельзя». Права всё равно проверяет сервер, это только вежливость. */}
+      <Route
+        path="/admin"
+        element={
+          <Adminka>
+            <Moderator />
+          </Adminka>
+        }
+      />
+      <Route
+        path="/admin/spiski"
+        element={
+          <Adminka>
+            <SpiskiEkran />
+          </Adminka>
+        }
+      />
+      <Route
+        path="/admin/priglasheniya"
+        element={
+          <Adminka>
+            <Priglasheniya />
+          </Adminka>
+        }
+      />
+      <Route
+        path="/admin/svodka"
+        element={
+          <Adminka>
+            <Svodka />
+          </Adminka>
+        }
+      />
+      <Route
+        path="/admin/prava"
+        element={
+          <Adminka>
+            <Moderatory />
+          </Adminka>
+        }
+      />
+
+      {/* Старые адреса админки живут ссылками в записях и закладках —
+          уводим на новые, а не показываем «страница не найдена». */}
+      <Route path="/moderator" element={<Navigate to="/admin" replace />} />
+      <Route path="/moderator/spiski" element={<Navigate to="/admin/spiski" replace />} />
+      <Route
+        path="/moderator/priglasheniya"
+        element={<Navigate to="/admin/priglasheniya" replace />}
+      />
+      <Route path="/moderator/svodka" element={<Navigate to="/admin/svodka" replace />} />
+      <Route path="/moderator/lyudi" element={<Navigate to="/admin/prava" replace />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

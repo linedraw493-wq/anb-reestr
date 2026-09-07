@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { saveFlow } from '../lib/flow'
 import { vspomnitNomer, zabytNomer, zapomnitNomer } from '../lib/pamyat'
@@ -9,6 +9,12 @@ import { Err, Shell } from '../ui/Shell'
 /** Повторный вход — без ссылки, по номеру. Решение 02.09.2026. */
 export default function Login() {
   const navigate = useNavigate()
+  // `/vhod?kuda=/admin` — человек шёл в админку и был отправлен сюда за
+  // кодом. Возвращаем его туда же, а не в каталог. Чужие адреса не берём:
+  // только свои, начинающиеся с одной косой черты.
+  const [adres] = useSearchParams()
+  const kuda = (adres.get('kuda') ?? '').startsWith('/') ? adres.get('kuda')! : undefined
+  const vAdminku = kuda?.startsWith('/admin') === true
   // Номер с прошлого раза — чтобы не набирать его заново. Сам вход держится
   // cookie и живёт 60 дней; это на случай, когда человек вышел сам.
   const zapomnennyy = vspomnitNomer()
@@ -46,14 +52,18 @@ export default function Login() {
     }
 
     zapomnitNomer(phone)
-    saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked })
+    saveFlow({ kind: 'login', phone, phoneMasked: res.phoneMasked, kuda })
     navigate('/kod')
   }
 
   return (
     <Shell>
-      <h1>Вход в реестр</h1>
-      <p className="sub">Введите номер, с которым регистрировались. Пришлём код.</p>
+      <h1>{vAdminku ? 'Вход в админку' : 'Вход в реестр'}</h1>
+      <p className="sub">
+        {vAdminku
+          ? 'Введите номер администратора или модератора — пришлём код.'
+          : 'Введите номер, с которым регистрировались. Пришлём код.'}
+      </p>
 
       <div>
         <span className="field-label" id="phone-label">

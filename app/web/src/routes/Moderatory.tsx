@@ -86,7 +86,7 @@ export default function Moderatory() {
           <h1>Сюда нельзя</h1>
           <p className="sub">Права раздаёт администратор Ассоциации.</p>
         </header>
-        <button className="btn" onClick={() => navigate('/moderator')}>
+        <button className="btn" onClick={() => navigate('/admin')}>
           К проверке карточек
         </button>
       </div>

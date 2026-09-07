@@ -68,7 +68,7 @@ export default function SpiskiEkran() {
           <h1>Сюда нельзя</h1>
           <p className="sub">Списки правит администратор Ассоциации.</p>
         </header>
-        <button className="btn" onClick={() => navigate('/vhod')}>
+        <button className="btn" onClick={() => navigate('/vhod?kuda=/admin')}>
           Войти
         </button>
       </div>

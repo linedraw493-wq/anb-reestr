@@ -65,7 +65,7 @@ export default function Svodka() {
           <h1>Сюда нельзя</h1>
           <p className="sub">Сводка — для администратора Ассоциации.</p>
         </header>
-        <button className="btn" onClick={() => navigate('/vhod')}>
+        <button className="btn" onClick={() => navigate('/vhod?kuda=/admin')}>
           Войти
         </button>
       </div>
@@ -168,10 +168,10 @@ export default function Svodka() {
       </section>
 
       <div className="svodka-knopki">
-        <button className="btn small" onClick={() => navigate('/moderator')}>
+        <button className="btn small" onClick={() => navigate('/admin')}>
           К проверке карточек
         </button>
-        <button className="btn small ghost" onClick={() => navigate('/moderator/priglasheniya')}>
+        <button className="btn small ghost" onClick={() => navigate('/admin/priglasheniya')}>
           Приглашения
         </button>
       </div>

@@ -46,6 +46,9 @@ export type Flow = {
   phoneMasked: string
   token?: string
   phone?: string
+  /** куда вернуть после кода. Пусто — по общему правилу (каталог/карточка).
+      Ставится, когда человек шёл на закрытый адрес: `/admin` и его страницы. */
+  kuda?: string
 }
 
 export interface AuthApi {

@@ -51,7 +51,9 @@ export default function Code() {
       if (res.ok) {
         clearFlow()
         // Новичка ведём заполнять карточку, вернувшегося — в каталог.
-        navigate(res.next === 'katalog' ? '/' : '/gotovo', { replace: true })
+        // Шёл в админку — туда и вернём. Иначе по общему правилу: новичка
+        // на «карточка готова», вернувшегося в каталог.
+        navigate(flow.kuda ?? (res.next === 'katalog' ? '/' : '/gotovo'), { replace: true })
         return
       }
 
