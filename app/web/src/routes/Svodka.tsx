@@ -22,8 +22,8 @@ type Dannye = {
   za_nedelyu: number
   prosmotry: number
   voronka: Shag[]
-  /** чем сейчас уходят коды входа: настоящей SMS или в чат владельца */
-  kanalKodov?: 'sms' | 'telegram'
+  /** чем сейчас уходят коды входа: звонком робота, SMS или в чат владельца */
+  kanalKodov?: 'zvonok' | 'sms' | 'telegram'
   /** остаток денег у оператора SMS, тенге. null — не спросили или не SMS */
   smsOstatok?: number | null
   /** сколько блогеров на Beeline — им код по SMS сейчас не доходит */
@@ -109,7 +109,13 @@ export default function Svodka() {
         className={`block kanal-blok${d.kanalKodov === 'telegram' || malo ? ' trevoga' : ''}`}
       >
         <h2>Коды входа</h2>
-        {d.kanalKodov === 'sms' ? (
+        {d.kanalKodov === 'zvonok' ? (
+          <p className="sub">
+            Робот звонит блогеру и диктует код по цифрам. Доходит до всех операторов, включая
+            Beeline. Остаток денег сайт тут не показывает — он виден в кабинете AutoCall.kz. Деньги
+            кончатся — звонки прекратятся, а снаружи это выглядит как поломка сайта.
+          </p>
+        ) : d.kanalKodov === 'sms' ? (
           <p className="sub">
             Уходят настоящей SMS на номер блогера.
             {typeof d.smsOstatok === 'number' && (

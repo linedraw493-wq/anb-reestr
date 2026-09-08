@@ -460,8 +460,9 @@ async def vhod_start(request: Request):
         "ok": True,
         "resendAfter": nastroyki.POVTOR_CHEREZ_SEK,
         "phoneMasked": vhod.maska(telefon),
-        # Экран кода должен сказать правду: ждать SMS, звонка или чата.
-        "kanal": vhod.kanal(),
+        # Экран кода должен сказать правду: ждать SMS, звонка, чата — или
+        # не ждать вовсе, если для этого номера действует постоянный код.
+        "kanal": "postoyannyy" if beda == "postoyannyy" else vhod.kanal(),
     }
 
 

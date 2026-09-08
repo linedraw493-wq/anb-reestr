@@ -11,8 +11,10 @@ export type InviteState =
  */
 export type StartInput = { token?: string; phone?: string }
 
-/** Чем сервер отдаёт код: звонком робота, SMS или в телеграм-чат владельца. */
-export type Kanal = 'zvonok' | 'sms' | 'telegram'
+/** Чем сервер отдаёт код: звонком робота, SMS или в телеграм-чат владельца.
+    `postoyannyy` — для этого номера действует постоянный код, и ничего не
+    отправляется вовсе: человек вводит тот код, который знает. */
+export type Kanal = 'zvonok' | 'sms' | 'telegram' | 'postoyannyy'
 
 export type StartResult =
   | { ok: true; resendAfter: number; phoneMasked: string; kanal?: Kanal }

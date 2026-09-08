@@ -15,6 +15,7 @@
 
 import hashlib
 import hmac
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +25,8 @@ from fastapi import Request
 from . import baza, nastroyki, sms, telegram, zvonok
 
 COOKIE = "sessiya"
+
+log = logging.getLogger("reestr.vhod")
 
 
 def teper() -> datetime:
@@ -158,11 +161,17 @@ async def poslat(kod: str, telefon: str | None, metka: str = "") -> bool:
 async def vydat_kod(
     conn: asyncpg.Connection, chelovek_id: int, telefon: str | None, metka: str = ""
 ) -> str | None:
-    """Возвращает 'too-often:<сек>' | 'no-delivery' | None (всё хорошо)."""
+    """'postoyannyy' | 'too-often:<сек>' | 'no-delivery' | None (всё хорошо)."""
     if master_kod_dlya(telefon):
         # Для этого номера действует постоянный код — слать нечего и незачем
         # тратить деньги на SMS. Для всех остальных дальше идёт обычный путь.
-        return None
+        #
+        # Раньше здесь возвращался None, и это было враньё: экран писал
+        # «сейчас позвоним», звонка не было, и владелец 08.09.2026 проверял
+        # звонки ровно на таком номере — решил, что сломан провайдер.
+        # Теперь говорим прямо, и в логе видно, почему звонка нет.
+        log.info("номер с постоянным кодом — не звоним и не шлём, вход по нему")
+        return "postoyannyy"
 
     poslednii = await conn.fetchrow(
         "select sozdan_v from kody where chelovek_id = $1 order by sozdan_v desc limit 1",
